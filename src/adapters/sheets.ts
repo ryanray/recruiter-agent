@@ -9,7 +9,12 @@ export class SheetsService implements SheetsAdapter {
   private spreadsheetId: string;
 
   constructor(serviceAccountPath: string, spreadsheetId: string) {
-    const key = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+    let key: { client_email: string; private_key: string };
+    try {
+      key = JSON.parse(readFileSync(serviceAccountPath, 'utf8')) as { client_email: string; private_key: string };
+    } catch {
+      throw new Error(`Failed to load service account from ${serviceAccountPath}. Does the file exist and is it valid JSON?`);
+    }
     this.auth = new google.auth.JWT({
       email: key.client_email,
       key: key.private_key,
@@ -40,7 +45,7 @@ export class SheetsService implements SheetsAdapter {
       spreadsheetId: this.spreadsheetId, range,
     });
     const rows = response.data.values ?? [];
-    const rowIndex = rows.findIndex(r => r[0] === name);
+    const rowIndex = rows.findIndex(r => r[0]?.trim() === name.trim());
     if (rowIndex === -1) return;
 
     const row = rows[rowIndex];
