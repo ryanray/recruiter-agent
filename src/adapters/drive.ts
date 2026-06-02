@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { Readable } from 'stream';
 import { google } from 'googleapis';
 import type { DriveAdapter } from '../types.js';
 
@@ -29,7 +30,9 @@ export class DriveService implements DriveAdapter {
       },
       fields: 'id',
     });
-    return response.data.id!;
+    const id = response.data.id;
+    if (!id) throw new Error(`Drive API returned no ID when creating folder "${name}"`);
+    return id;
   }
 
   async moveFolder(folderId: string, targetParentId: string): Promise<void> {
@@ -46,7 +49,6 @@ export class DriveService implements DriveAdapter {
 
   async uploadFile(folderId: string, name: string, content: Buffer, mimeType: string): Promise<void> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
-    const { Readable } = await import('stream');
     await drive.files.create({
       requestBody: { name, parents: [folderId] },
       media: { mimeType, body: Readable.from(content) },
