@@ -9,7 +9,7 @@ const config: Config = {
     preferred: ['cna_certification', 'home_care_experience'],
     disqualifying: [],
   },
-  scheduling: { cold_candidate_days: 3 },
+  scheduling: { cold_candidate_days: 3, hiring_team_emails: [] },
   messages: { intro: '', rejection: '' },
   google_drive: {
     recruiting_root_folder_id: 'x', checkback_folder_id: 'x',

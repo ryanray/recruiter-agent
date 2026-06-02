@@ -16,6 +16,7 @@ screening:
 
 scheduling:
   cold_candidate_days: 3
+  hiring_team_emails: []  # Add team member emails to include on phone screen invites
 
 messages:
   intro: "Hi {name}, thank you for applying to Firstlight Home Care of South Jordan! We'd love to set up a quick phone screen. Please use the link below to schedule a time that works for you."

@@ -1,6 +1,6 @@
 run:
   trigger: manual
-  max_candidates_per_run: 10
+  max_candidates_per_run: 1
 
 screening:
   required:
@@ -16,20 +16,21 @@ screening:
 
 scheduling:
   cold_candidate_days: 3
+  hiring_team_emails: []  # Add team member emails to include on phone screen invites
 
 messages:
-  intro: "Hi {name}, thank you for applying to Firstlight Home Care of South Jordan! We'd love to set up a quick phone screen. Please use the link below to schedule a time that works for you."
-  rejection: "Hi {name}, thank you for your interest in Firstlight Home Care. After reviewing your application, we don't have a position that's the right fit at this time. We wish you the best in your search."
+  intro: "Hi {name}, thank you for applying to FirstLight Home Care of South Jordan! We'd love to set up a quick phone call so that we can tell you more about us and the position as well as learn more about your background. Please use the link below to schedule a time that works for you."
+  rejection: "Hi {name}, thank you for your interest in FirstLight Home Care. After reviewing your application, we don't have a position that's the right fit at this time. We wish you the best in your search."
 
 google_drive:
-  recruiting_root_folder_id: ""
-  checkback_folder_id: ""
-  rejected_folder_id: ""
-  interview_template_sheet_id: ""
-  run_log_doc_id: ""
+  recruiting_root_folder_id: "1jYcRwUmAdjKs17ajEto4weKbkicP4CX3"
+  checkback_folder_id: "1qSMovk7JilLTJC3iscz5M8GYdRBMXnZj"
+  rejected_folder_id: "1Sf0m8rRklyNxkOT-OVwO1l9_H5i47aMJ"
+  interview_template_sheet_id: "1XE-v4MQom3PJfkfzk0cIdOYfOMYp3Qlo"
+  run_log_doc_id: "1ACCixPnObKbbEFtocylVsON87TlNkySrX5m27e8q8DE"
 
 google_sheets:
-  tracker_spreadsheet_id: ""
+  tracker_spreadsheet_id: "1PvFN-O9ULGu-uyLLoeYtXZUjeM_3KyFCWb862gxsXQk"
 
 slack:
-  recruiting_channel: "#recruiting"
+  recruiting_channel: "#recruiting-private"

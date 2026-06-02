@@ -112,7 +112,7 @@ export interface RunResult {
 export interface IndeedAdapter {
   getNewApplications(since: Date): Promise<Applicant[]>;
   sendMessage(applicantId: string, message: string): Promise<void>;
-  triggerScheduler(applicantId: string): Promise<void>;
+  triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void>;
   getBookedInterviews(): Promise<Interview[]>;
   downloadResume(applicantId: string): Promise<Buffer>;
 }
@@ -154,6 +154,7 @@ export interface Config {
   };
   scheduling: {
     cold_candidate_days: number;
+    hiring_team_emails: string[];
   };
   messages: {
     intro: string;

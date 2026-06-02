@@ -13,7 +13,7 @@ const config: Config = {
     preferred: ['cna_certification'],
     disqualifying: [],
   },
-  scheduling: { cold_candidate_days: 3 },
+  scheduling: { cold_candidate_days: 3, hiring_team_emails: [] },
   messages: {
     intro: 'Hi {name}, thanks for applying!',
     rejection: 'Hi {name}, we appreciate your interest.',
@@ -96,7 +96,8 @@ describe('Agent.run', () => {
 
     expect(indeed.sentMessages).toHaveLength(1);
     expect(indeed.sentMessages[0].message).toContain('Jane');
-    expect(indeed.triggeredSchedulers).toContain('app-1');
+    expect(indeed.triggeredSchedulers[0].applicantId).toBe('app-1');
+    expect(indeed.triggeredSchedulers[0].hiringTeamEmails).toEqual([]);
     expect(sheets.tabs['Active']).toHaveLength(1);
     expect(sheets.tabs['Active'][0].status).toBe('Screened - Invite Sent');
     expect(result.passed).toHaveLength(1);

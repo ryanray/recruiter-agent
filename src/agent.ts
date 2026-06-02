@@ -48,7 +48,7 @@ export class Agent {
             applicant.id,
             renderTemplate(this.config.messages.intro, { name: applicant.firstName })
           );
-          await this.indeed.triggerScheduler(applicant.id);
+          await this.indeed.triggerScheduler(applicant.id, this.config.scheduling.hiring_team_emails);
 
           await this.sheets.addCandidate('Active', this.buildRow(applicant, screening, 'Screened - Invite Sent'));
 

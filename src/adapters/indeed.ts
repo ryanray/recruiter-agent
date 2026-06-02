@@ -88,12 +88,16 @@ export class IndeedService implements IndeedAdapter {
     await page.waitForSelector('[data-testid="message-sent-confirmation"]', { timeout: 10_000 });
   }
 
-  async triggerScheduler(applicantId: string): Promise<void> {
+  async triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void> {
     const page = await this.getPage();
     await page.goto(`https://employers.indeed.com/applicants/${applicantId}`);
     await page.waitForSelector('[data-testid="schedule-interview-button"]');
     await page.click('[data-testid="schedule-interview-button"]');
-    // Indeed's scheduler flow — confirm the scheduling prompt
+    // TODO: verify selector against live Indeed DOM
+    if (hiringTeamEmails.length > 0) {
+      await page.waitForSelector('[data-testid="hiring-team-emails"]', { timeout: 10_000 });
+      await page.fill('[data-testid="hiring-team-emails"]', hiringTeamEmails.join(', '));
+    }
     await page.waitForSelector('[data-testid="scheduler-sent-confirmation"]', { timeout: 15_000 });
   }
 

@@ -4,7 +4,7 @@ export class FakeIndeedAdapter implements IndeedAdapter {
   private applicants: Applicant[] = [];
   private interviews: Interview[] = [];
   sentMessages: { applicantId: string; message: string }[] = [];
-  triggeredSchedulers: string[] = [];
+  triggeredSchedulers: { applicantId: string; hiringTeamEmails: string[] }[] = [];
 
   seedApplicants(applicants: Applicant[]): void {
     this.applicants = applicants;
@@ -22,8 +22,8 @@ export class FakeIndeedAdapter implements IndeedAdapter {
     this.sentMessages.push({ applicantId, message });
   }
 
-  async triggerScheduler(applicantId: string): Promise<void> {
-    this.triggeredSchedulers.push(applicantId);
+  async triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void> {
+    this.triggeredSchedulers.push({ applicantId, hiringTeamEmails });
   }
 
   async getBookedInterviews(): Promise<Interview[]> {
