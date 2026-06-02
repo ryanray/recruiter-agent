@@ -247,6 +247,85 @@ Humans respond to UNSURE and Checkback alerts by updating the Google Sheet statu
 - Multi-location support (single South Jordan franchise only)
 - Background check integration
 
+## Testing
+
+Each component is designed to be tested in isolation. The core pattern is an **adapter interface** for every external service — the agent logic talks to the interface, never directly to the real service. Tests swap in a fake implementation.
+
+### Adapter interfaces
+
+Each integration is defined as a TypeScript interface:
+
+```typescript
+interface IndeedAdapter {
+  getNewApplications(since: Date): Promise<Applicant[]>
+  sendMessage(applicantId: string, message: string): Promise<void>
+  triggerScheduler(applicantId: string): Promise<void>
+  getBookedInterviews(): Promise<Interview[]>
+  downloadResume(applicantId: string): Promise<Buffer>
+}
+
+interface SheetsAdapter {
+  addCandidate(tab: string, candidate: CandidateRow): Promise<void>
+  updateCandidateStatus(name: string, status: string, extras?: Partial<CandidateRow>): Promise<void>
+  getActiveCandidates(): Promise<CandidateRow[]>
+}
+
+interface DriveAdapter {
+  createFolder(name: string, parentId: string): Promise<string>
+  moveFolder(folderId: string, targetParentId: string): Promise<void>
+  uploadFile(folderId: string, name: string, content: Buffer): Promise<void>
+  copyTemplate(templateId: string, destFolderId: string, name: string): Promise<void>
+}
+
+interface SlackAdapter {
+  post(channel: string, message: string): Promise<void>
+}
+```
+
+Real implementations wrap the MCP servers. Fake implementations are simple in-memory stubs used in tests.
+
+### What can be tested in isolation
+
+| Component | How to test |
+|---|---|
+| **Screening logic** | Pure function: candidate data in, `PASS`/`FAIL`/`UNSURE` + reason out. No external calls. Test against known candidate profiles covering every criteria combination. |
+| **Message templating** | Pure function: candidate name + template string in, rendered message out. |
+| **Config loading** | Load `config.yaml` and assert all required fields are present and valid types. |
+| **State file** | Write a timestamp, read it back, assert correctness. |
+| **Run log formatter** | Pass a run result object in, assert the formatted string matches expected output. |
+| **Full pipeline (with fakes)** | Wire the agent with fake adapters. Seed the Indeed fake with test applicants. Run the agent. Assert the Sheets fake, Drive fake, and Slack fake received the expected calls. |
+
+### Testing the real integrations
+
+Each real adapter has its own standalone smoke test script that exercises the live service with a single safe operation (e.g., read one row from Sheets, post a test message to Slack in a `#recruiting-test` channel). These are run manually when first configuring credentials — not part of the automated test suite.
+
+### Test file structure
+
+```
+src/
+  adapters/
+    indeed.ts          ← real Playwright implementation
+    sheets.ts          ← real Google Sheets implementation
+    drive.ts           ← real Google Drive implementation
+    slack.ts           ← real Slack implementation
+  fakes/
+    indeed.fake.ts     ← in-memory stub for tests
+    sheets.fake.ts
+    drive.fake.ts
+    slack.fake.ts
+  screening.ts         ← pure screening logic
+  agent.ts             ← orchestrator, depends only on interfaces
+tests/
+  screening.test.ts    ← unit tests
+  pipeline.test.ts     ← full pipeline with fakes
+  smoke/
+    sheets.smoke.ts    ← manual live smoke tests
+    slack.smoke.ts
+    drive.smoke.ts
+```
+
+---
+
 ## Fallback: Claude Chrome Extension
 
 If Indeed blocks or rate-limits the Playwright browser automation, the Claude Chrome Extension (human-in-the-loop mode) is the fallback. In this mode:
