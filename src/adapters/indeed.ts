@@ -141,15 +141,22 @@ export class IndeedService implements IndeedAdapter {
 }
 
 function parseIndeedDate(text: string): Date {
-  // Indeed shows dates like "2 days ago", "June 1", "5/31/2026" — parse accordingly
   const trimmed = text.trim();
   if (trimmed.includes('ago')) {
-    const match = trimmed.match(/(\d+)\s+day/);
-    if (match) {
+    const dayMatch = trimmed.match(/(\d+)\s+day/);
+    if (dayMatch) {
       const d = new Date();
-      d.setDate(d.getDate() - parseInt(match[1], 10));
+      d.setDate(d.getDate() - parseInt(dayMatch[1], 10));
       return d;
     }
+    const hourMatch = trimmed.match(/(\d+)\s+hour/);
+    if (hourMatch) {
+      const d = new Date();
+      d.setHours(d.getHours() - parseInt(hourMatch[1], 10));
+      return d;
+    }
+    // "X minutes ago", "just now", or any other "ago" string — treat as now
+    return new Date();
   }
   return new Date(trimmed);
 }
