@@ -125,7 +125,7 @@ When a candidate books a phone screen via Indeed's scheduler:
 - Create a Drive folder: `{LastName}_{FirstName}_{YYYY-MM-DD}` inside `Caregiver Applicants/`
 - Download resume from Indeed → save to folder
 - Copy interview template sheet into folder
-- Move candidate row from "Active" tab to "Interview Scheduled" tab, add Drive folder link
+- Update candidate's Status in Active tab to `Interview Scheduled`, add Drive folder link
 - Post to Slack: candidate name, phone screen time, Drive folder link
 
 ### 5. Check for cold candidates
@@ -160,13 +160,20 @@ SCREENING CRITERIA APPLIED
 
 ## Google Sheets Tracker Structure
 
-**Active** — candidates currently in the pipeline
+**Active** — all candidates currently in the pipeline, regardless of stage
 
 | Name | Phone | Email | Indeed URL | Location | Experience | Certifications | Status | Last Contact | Drive Folder | Notes |
 
-**Interview Scheduled** — booked a phone screen, Drive folder created
+The Status column uses explicit values so the agent always knows what state a candidate is in:
 
-Same columns as Active, with Drive Folder link populated.
+| Status value | Meaning |
+|---|---|
+| `Screened - Invite Sent` | Passed screening, intro message + Indeed scheduler invite sent, awaiting response |
+| `Interview Scheduled` | Accepted the phone screen booking, Drive folder created |
+| `Cold` | No response after `cold_candidate_days` days since invite sent |
+| `UNSURE` | Agent couldn't determine a required criterion, human review needed |
+
+Candidates remain in Active through all of these states. They move out only when a human makes a final decision (Hired, Rejected, Checkback Later). The cold candidate check only applies to candidates with status `Screened - Invite Sent` — candidates who have already scheduled are not flagged as cold.
 
 **Checkback Later** — human decision only; agent never moves candidates here
 
