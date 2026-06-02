@@ -157,7 +157,13 @@ export class Agent {
         await this.slack.post(
           this.config.slack.recruiting_channel,
           `⚠️ *Drive folder creation failed* for ${interview.applicantName}. Manual setup needed.`
-        ).catch(() => {});
+        ).catch((alertErr: unknown) => {
+          result.errors.push({
+            description: `Slack alert also failed for ${interview.applicantName}`,
+            reason: alertErr instanceof Error ? alertErr.message : String(alertErr),
+            action: 'Manual intervention needed',
+          });
+        });
       }
     }
 
@@ -175,7 +181,7 @@ export class Agent {
         await this.sheets.updateCandidateStatus(candidate.name, 'Cold');
         await this.slack.post(
           this.config.slack.recruiting_channel,
-          `❄️ *cold candidate:* ${candidate.name} — no response in ${daysSince} days\n${candidate.indeedUrl}`
+          `❄️ *Cold candidate:* ${candidate.name} — no response in ${daysSince} days\n${candidate.indeedUrl}`
         );
         result.coldCandidates.push({ name: candidate.name, daysSinceContact: daysSince });
       }

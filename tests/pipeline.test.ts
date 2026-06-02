@@ -182,7 +182,7 @@ describe('Agent.run', () => {
     expect(result.coldCandidates[0].name).toBe('Cold Carl');
     expect(slack.messages).toHaveLength(1);
     expect(slack.messages[0].message).toContain('Cold Carl');
-    expect(slack.messages[0].message).toContain('cold');
+    expect(slack.messages[0].message).toContain('Cold');
   });
 
   it('does not flag Interview Scheduled candidates as cold', async () => {
