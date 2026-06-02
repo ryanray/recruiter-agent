@@ -55,4 +55,14 @@ describe('loadConfig', () => {
     const config = loadConfig(TEST_CONFIG_PATH);
     expect(config.run.max_candidates_per_run).toBeNull();
   });
+
+  it('throws when run.trigger has an invalid value', () => {
+    writeFileSync(TEST_CONFIG_PATH, validYaml.replace('trigger: manual', 'trigger: automatic'));
+    expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow("Invalid value for run.trigger");
+  });
+
+  it('throws when config is null or empty', () => {
+    writeFileSync(TEST_CONFIG_PATH, '');
+    expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow('Config file is empty or not a valid YAML object');
+  });
 });

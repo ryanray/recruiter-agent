@@ -26,10 +26,17 @@ const REQUIRED_FIELDS: [string, string][] = [
 ];
 
 function validateConfig(config: Config): void {
+  if (!config || typeof config !== 'object') {
+    throw new Error('Config file is empty or not a valid YAML object');
+  }
   for (const [section, key] of REQUIRED_FIELDS) {
     const value = (config as Record<string, Record<string, unknown>>)[section]?.[key];
     if (value === undefined || value === null || value === '') {
       throw new Error(`Missing required config: ${section}.${key}`);
     }
+  }
+  const trigger = (config as Record<string, Record<string, unknown>>)['run']?.['trigger'];
+  if (trigger !== 'manual' && trigger !== 'cron') {
+    throw new Error(`Invalid value for run.trigger: must be 'manual' or 'cron', got '${trigger}'`);
   }
 }

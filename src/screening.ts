@@ -34,7 +34,29 @@ Return exactly this JSON structure:
   });
 
   const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
-  return JSON.parse(text) as ExtractedProfile;
+  const cleaned = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned) as Partial<ExtractedProfile>;
+    return {
+      location: parsed.location ?? null,
+      distanceMiles: parsed.distanceMiles ?? null,
+      hasLicense: parsed.hasLicense ?? null,
+      hasTransportation: parsed.hasTransportation ?? null,
+      certifications: parsed.certifications ?? [],
+      experienceTypes: parsed.experienceTypes ?? [],
+      yearsExperience: parsed.yearsExperience ?? null,
+    };
+  } catch {
+    return {
+      location: null,
+      distanceMiles: null,
+      hasLicense: null,
+      hasTransportation: null,
+      certifications: [],
+      experienceTypes: [],
+      yearsExperience: null,
+    };
+  }
 }
 
 export function applyRules(profile: ExtractedProfile, config: Config): ScreeningResult {
@@ -63,10 +85,12 @@ export function applyRules(profile: ExtractedProfile, config: Config): Screening
     }
   }
 
-  const hasCNA = profile.certifications.map(c => c.toUpperCase()).includes('CNA');
+  const certifications = profile.certifications ?? [];
+  const experienceTypes = profile.experienceTypes ?? [];
+  const hasCNA = certifications.map(c => c.toUpperCase()).includes('CNA');
   const hasCareExp =
-    profile.experienceTypes.includes('home_care') ||
-    profile.experienceTypes.includes('care_facility');
+    experienceTypes.includes('home_care') ||
+    experienceTypes.includes('care_facility');
   const isUrgent = hasCNA && hasCareExp && (profile.yearsExperience ?? 0) >= 1;
 
   return { decision, reasons, extractedData: profile, isUrgent };

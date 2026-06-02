@@ -99,4 +99,11 @@ describe('applyRules', () => {
     const result = applyRules(makeProfile({ experienceTypes: ['none'] }), config);
     expect(result.decision).toBe('PASS');
   });
+
+  it('returns FAIL when distance is null and license is false (FAIL overwrites UNSURE)', () => {
+    const result = applyRules(makeProfile({ distanceMiles: null, hasLicense: false }), config);
+    expect(result.decision).toBe('FAIL');
+    expect(result.reasons.some(r => r.includes('distance'))).toBe(true);
+    expect(result.reasons.some(r => r.includes('license'))).toBe(true);
+  });
 });
