@@ -33,8 +33,8 @@ export class IndeedService implements IndeedAdapter {
 
   async getNewApplications(since: Date): Promise<Applicant[]> {
     const page = await this.getPage();
-    await page.goto('https://employers.indeed.com/applicants');
-    // TODO: Indeed's applicant list selectors — update if the page layout changes.
+    await page.goto('https://employers.indeed.com/candidates');
+    // TODO: Indeed's candidate list selectors — update if the page layout changes.
     // Selectors below are starting points; verify against the live page.
     await page.waitForSelector('[data-testid="applicant-list"]', { timeout: 15_000 });
 
@@ -42,6 +42,11 @@ export class IndeedService implements IndeedAdapter {
     const items = await page.$$('[data-testid="applicant-list-item"]');
 
     for (const item of items) {
+      // Skip candidates already marked as shortlisted, undecided, or no interest
+      // TODO: verify selector — this targets any existing interest status badge
+      const alreadyMarked = await item.$('[data-testid="interest-status"]') !== null;
+      if (alreadyMarked) continue;
+
       const appliedText = await item.$eval('[data-testid="applied-date"]', el => el.textContent ?? '');
       const appliedAt = parseIndeedDate(appliedText);
       if (appliedAt <= since) continue;
@@ -81,7 +86,7 @@ export class IndeedService implements IndeedAdapter {
 
   async sendMessage(applicantId: string, message: string): Promise<void> {
     const page = await this.getPage();
-    await page.goto(`https://employers.indeed.com/applicants/${applicantId}/messages`);
+    await page.goto(`https://employers.indeed.com/candidates/${applicantId}/messages`);
     await page.waitForSelector('[data-testid="message-input"]');
     await page.fill('[data-testid="message-input"]', message);
     await page.click('[data-testid="send-message-button"]');
@@ -90,7 +95,7 @@ export class IndeedService implements IndeedAdapter {
 
   async triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void> {
     const page = await this.getPage();
-    await page.goto(`https://employers.indeed.com/applicants/${applicantId}`);
+    await page.goto(`https://employers.indeed.com/candidates/${applicantId}`);
     await page.waitForSelector('[data-testid="schedule-interview-button"]');
     await page.click('[data-testid="schedule-interview-button"]');
     // TODO: verify selector against live Indeed DOM
@@ -127,7 +132,7 @@ export class IndeedService implements IndeedAdapter {
 
   async downloadResume(applicantId: string): Promise<Buffer> {
     const page = await this.getPage();
-    await page.goto(`https://employers.indeed.com/applicants/${applicantId}`);
+    await page.goto(`https://employers.indeed.com/candidates/${applicantId}`);
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.click('[data-testid="download-resume-button"]'),
