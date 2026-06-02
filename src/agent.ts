@@ -72,7 +72,7 @@ export class Agent {
             renderTemplate(this.config.messages.rejection, { name: applicant.firstName })
           );
 
-          const row = this.buildRow(applicant, screening, 'Screened - Invite Sent');
+          const row = this.buildRow(applicant, screening, 'Rejected');
           row.notes = screening.reasons.join('; ');
           await this.sheets.addCandidate('Rejected', row);
 

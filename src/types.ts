@@ -24,7 +24,8 @@ export type CandidateStatus =
   | 'Screened - Invite Sent'
   | 'Interview Scheduled'
   | 'Cold'
-  | 'UNSURE';
+  | 'UNSURE'
+  | 'Rejected';
 
 export interface CandidateRow {
   name: string;
