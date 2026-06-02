@@ -115,7 +115,10 @@ export class Agent {
     for (const interview of interviews) {
       try {
         const nameParts = interview.applicantName.split(' ');
-        const folderName = `${nameParts.slice(1).join('_')}_${nameParts[0]}_${today()}`;
+        const firstName = nameParts[0] ?? interview.applicantName;
+        const lastName = nameParts.slice(1).join(' ');
+        const nameLabel = `${lastName}, ${firstName}`;
+        const folderName = `${nameLabel} - ${today()}`;
         const folderId = await this.drive.createFolder(
           folderName,
           this.config.google_drive.recruiting_root_folder_id
@@ -127,7 +130,7 @@ export class Agent {
         await this.drive.copyTemplate(
           this.config.google_drive.interview_template_sheet_id,
           folderId,
-          'Interview Questions'
+          `Interview Questions: ${nameLabel} - ${today()}`
         );
 
         const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;

@@ -154,7 +154,7 @@ describe('Agent.run', () => {
     await agent.run(new Date());
 
     expect(drive.folders).toHaveLength(1);
-    expect(drive.folders[0].name).toMatch(/^Doe_Jane_\d{4}-\d{2}-\d{2}$/);
+    expect(drive.folders[0].name).toMatch(/^Doe, Jane - \d{4}-\d{2}-\d{2}$/);
     expect(drive.folders[0].parentId).toBe('root-id');
     expect(drive.files).toHaveLength(1);
     expect(drive.files[0].name).toBe('resume.pdf');
