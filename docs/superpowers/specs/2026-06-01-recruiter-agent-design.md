@@ -246,3 +246,15 @@ Humans respond to UNSURE and Checkback alerts by updating the Google Sheet statu
 - Active outreach / searching Indeed resume database
 - Multi-location support (single South Jordan franchise only)
 - Background check integration
+
+## Fallback: Claude Chrome Extension
+
+If Indeed blocks or rate-limits the Playwright browser automation, the Claude Chrome Extension (human-in-the-loop mode) is the fallback. In this mode:
+
+- A human navigates Indeed Employer in Chrome with the Claude extension active
+- Claude reads the current page, screens each candidate, and drafts messages
+- The human executes each action manually (send message, trigger scheduler)
+- Google Sheets, Google Drive, and Slack integrations remain fully automated in the background
+- The extension looks like a normal human browsing session — no anti-bot risk
+
+The Playwright approach is attempted first. If account flagging becomes a problem, the architecture can be adapted to this mode without redesigning the non-Indeed integrations.
