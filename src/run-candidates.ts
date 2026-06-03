@@ -40,7 +40,7 @@ try {
 } catch (err) {
   clearTimeout(timeout);
   console.error('Fatal error:', err instanceof Error ? err.message : err);
-  process.exit(1);
+  throw err;
 } finally {
   await indeed.close();
 }
