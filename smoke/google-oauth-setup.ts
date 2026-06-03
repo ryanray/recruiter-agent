@@ -12,7 +12,7 @@ if (!clientId || !clientSecret) {
   process.exit(1);
 }
 
-const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, 'http://localhost:3000');
+const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, 'http://localhost:3333');
 
 const authUrl = oauth2Client.generateAuthUrl({
   access_type: 'offline',
@@ -29,7 +29,7 @@ console.log(authUrl + '\n');
 exec(`open "${authUrl}"`);
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url ?? '/', 'http://localhost:3000');
+  const url = new URL(req.url ?? '/', 'http://localhost:3333');
   const code = url.searchParams.get('code');
   const error = url.searchParams.get('error');
 
@@ -65,6 +65,6 @@ const server = http.createServer(async (req, res) => {
   console.log('\nThen run the smoke tests to verify.');
 });
 
-server.listen(3000, () => {
+server.listen(3333, () => {
   console.log('Waiting for authorization on http://localhost:3000 ...');
 });
