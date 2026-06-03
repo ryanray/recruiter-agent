@@ -15,8 +15,7 @@ const config: Config = {
   },
   scheduling: { cold_candidate_days: 3, hiring_team_emails: [] },
   messages: {
-    intro: 'Hi {name}, thanks for applying!',
-    rejection: 'Hi {name}, we appreciate your interest.',
+    interview_request: 'Hi {FIRST_NAME}, thanks for applying!',
   },
   google_drive: {
     recruiting_root_folder_id: 'root-id',
@@ -226,7 +225,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'awaiting-id' });
     });
 
-    it('Approve: clears humanDecision first, marks yes sentiment, sends intro, triggers scheduler, moves folder, updates status', async () => {
+    it('Approve: clears humanDecision first, marks yes sentiment, sets up interview, moves folder, updates status', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Approve',
         driveFolder: 'https://drive.google.com/drive/folders/folder-1',
@@ -234,11 +233,11 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
       await agent.processPendingDecisions();
 
-      expect(indeed.markedSentiments).toHaveLength(1);
       expect(indeed.markedSentiments[0]).toEqual({ applicantId: 'app-1', sentiment: 'yes' });
-      expect(indeed.sentMessages).toHaveLength(1);
-      expect(indeed.sentMessages[0].message).toContain('Jane');
-      expect(indeed.triggeredSchedulers[0].applicantId).toBe('app-1');
+      expect(indeed.interviewsSetUp).toHaveLength(1);
+      expect(indeed.interviewsSetUp[0].applicantId).toBe('app-1');
+      expect(indeed.interviewsSetUp[0].options.message).toContain('Jane');
+      expect(indeed.interviewsSetUp[0].options.hiringTeamEmails).toEqual([]);
       expect(drive.moves[0].folderId).toBe('folder-1');
       expect(drive.moves[0].targetParentId).toBe('root-id');
       expect(sheets.tabs['Active'][0].status).toBe('Screened - Invite Sent');
@@ -246,7 +245,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(sheets.tabs['Active'][0].lastContact).toBeTruthy();
     });
 
-    it('Reject: clears humanDecision first, marks no sentiment, sends rejection, moves folder and row', async () => {
+    it('Reject: clears humanDecision first, marks no sentiment, moves folder and row (no message sent)', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Reject',
         driveFolder: 'https://drive.google.com/drive/folders/folder-1',
@@ -255,11 +254,10 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       await agent.processPendingDecisions();
 
       expect(indeed.markedSentiments[0]).toEqual({ applicantId: 'app-1', sentiment: 'no' });
-      expect(indeed.sentMessages[0].message).toContain('appreciate');
+      expect(indeed.interviewsSetUp).toHaveLength(0);
       expect(drive.moves[0].targetParentId).toBe('rejected-id');
       expect(sheets.tabs['Active']).toHaveLength(0);
       expect(sheets.tabs['Rejected']).toHaveLength(1);
-      expect(indeed.triggeredSchedulers).toHaveLength(0);
     });
 
     it('Checkback Later: clears humanDecision first, marks yes sentiment, moves folder and row, sends no message', async () => {

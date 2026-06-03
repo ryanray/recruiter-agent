@@ -3,9 +3,8 @@ import type { IndeedAdapter, Applicant, Interview } from '../types.js';
 export class FakeIndeedAdapter implements IndeedAdapter {
   private applicants: Applicant[] = [];
   private interviews: Interview[] = [];
-  sentMessages: { applicantId: string; message: string }[] = [];
-  triggeredSchedulers: { applicantId: string; hiringTeamEmails: string[] }[] = [];
   markedSentiments: { applicantId: string; sentiment: string }[] = [];
+  interviewsSetUp: { applicantId: string; options: { message: string; hiringTeamEmails: string[] } }[] = [];
 
   seedApplicants(applicants: Applicant[]): void {
     this.applicants = applicants;
@@ -27,12 +26,8 @@ export class FakeIndeedAdapter implements IndeedAdapter {
     this.markedSentiments.push({ applicantId, sentiment });
   }
 
-  async sendMessage(applicantId: string, message: string): Promise<void> {
-    this.sentMessages.push({ applicantId, message });
-  }
-
-  async triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void> {
-    this.triggeredSchedulers.push({ applicantId, hiringTeamEmails });
+  async setupInterview(applicantId: string, options: { message: string; hiringTeamEmails: string[] }): Promise<void> {
+    this.interviewsSetUp.push({ applicantId, options });
   }
 
   async getBookedInterviews(): Promise<Interview[]> {
