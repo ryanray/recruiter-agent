@@ -1,34 +1,36 @@
 import { readFile } from 'fs/promises';
-import { chromium, type Browser, type Page } from 'playwright';
+import { chromium, type BrowserContext, type Page } from 'playwright';
 import type { IndeedAdapter, Applicant, Interview } from '../types.js';
 
-export class IndeedService implements IndeedAdapter {
-  private browser: Browser | null = null;
-  private page: Page | null = null;
+// Path to a persistent Chromium profile so Google OAuth sessions survive across runs.
+// On the first run the browser opens and you log in manually; subsequent runs reuse the session.
+const CHROME_PROFILE_DIR = new URL('../../data/chrome-profile', import.meta.url).pathname;
 
-  constructor(
-    private email: string,
-    private password: string,
-  ) {}
+export class IndeedService implements IndeedAdapter {
+  private context: BrowserContext | null = null;
+  private page: Page | null = null;
 
   private async getPage(): Promise<Page> {
     if (this.page) return this.page;
-    this.browser = await chromium.launch({ headless: false }); // headless:false to debug login
-    const context = await this.browser.newContext();
-    this.page = await context.newPage();
-    await this.login();
+    // persistentContext keeps cookies/localStorage across runs — no manual re-login needed
+    this.context = await chromium.launchPersistentContext(CHROME_PROFILE_DIR, {
+      headless: false,
+      args: ['--no-sandbox'],
+    });
+    this.page = this.context.pages()[0] ?? await this.context.newPage();
+    await this.ensureLoggedIn();
     return this.page;
   }
 
-  private async login(): Promise<void> {
+  private async ensureLoggedIn(): Promise<void> {
     const page = this.page!;
-    await page.goto('https://employers.indeed.com/p/login');
-    await page.fill('input[name="email"]', this.email);
-    await page.click('button[type="submit"]');
-    await page.fill('input[name="password"]', this.password);
-    await page.click('button[type="submit"]');
-    // Wait for redirect to employer dashboard
-    await page.waitForURL('**/employers.indeed.com/**', { timeout: 30_000 });
+    await page.goto('https://employers.indeed.com/candidates');
+    // If redirected to a login page, wait for the user to log in manually
+    if (!page.url().includes('employers.indeed.com/candidates')) {
+      console.log('Not logged in to Indeed. Please log in via the browser window that just opened.');
+      await page.waitForURL('**/employers.indeed.com/candidates**', { timeout: 120_000 });
+      console.log('Indeed login detected. Continuing...');
+    }
   }
 
   async getNewApplications(since: Date): Promise<Applicant[]> {
@@ -143,8 +145,8 @@ export class IndeedService implements IndeedAdapter {
   }
 
   async close(): Promise<void> {
-    await this.browser?.close();
-    this.browser = null;
+    await this.context?.close();
+    this.context = null;
     this.page = null;
   }
 }

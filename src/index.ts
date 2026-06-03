@@ -12,14 +12,9 @@ import { SlackService } from './adapters/slack.js';
 const config = loadConfig();
 
 const slackToken = process.env.SLACK_BOT_TOKEN;
-const indeedEmail = process.env.INDEED_EMAIL;
-const indeedPassword = process.env.INDEED_PASSWORD;
-
 if (!slackToken) throw new Error('SLACK_BOT_TOKEN not set in .env');
-if (!indeedEmail) throw new Error('INDEED_EMAIL not set in .env');
-if (!indeedPassword) throw new Error('INDEED_PASSWORD not set in .env');
 
-const indeed = new IndeedService(indeedEmail, indeedPassword);
+const indeed = new IndeedService();
 const sheets = new SheetsService(config.google_sheets.tracker_spreadsheet_id);
 const drive = new DriveService();
 const slack = new SlackService(slackToken);
