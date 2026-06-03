@@ -21,6 +21,7 @@ export interface Interview {
 }
 
 export type CandidateStatus =
+  | 'Awaiting Review'
   | 'Screened - Invite Sent'
   | 'Interview Scheduled'
   | 'Cold'
@@ -32,12 +33,15 @@ export interface CandidateRow {
   phone: string;
   email: string;
   indeedUrl: string;
+  indeedId: string;
   location: string;
   experience: string;
   certifications: string;
+  agentRecommendation: string;
   status: CandidateStatus;
-  lastContact: string; // YYYY-MM-DD
+  lastContact: string;
   driveFolder?: string;
+  humanDecision: string;
   notes: string;
 }
 
@@ -126,6 +130,9 @@ export interface SheetsAdapter {
     extras?: Partial<CandidateRow>
   ): Promise<void>;
   getActiveCandidates(): Promise<CandidateRow[]>;
+  getEvaluatedCandidateIds(): Promise<Set<string>>;
+  getCandidatesForAction(): Promise<CandidateRow[]>;
+  moveCandidate(name: string, fromTab: string, toTab: string): Promise<void>;
 }
 
 export interface DriveAdapter {
@@ -163,6 +170,7 @@ export interface Config {
   };
   google_drive: {
     recruiting_root_folder_id: string;
+    awaiting_action_folder_id: string;
     checkback_folder_id: string;
     rejected_folder_id: string;
     interview_template_sheet_id: string;
