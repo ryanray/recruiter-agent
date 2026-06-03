@@ -162,7 +162,7 @@ export class IndeedService implements IndeedAdapter {
     await page.click('[data-testid="gt-interview-form-message-to-candidate-text-area"]');
     await jitter(300, 700);
     await page.fill('[data-testid="gt-interview-form-message-to-candidate-text-area"]', '');
-    await page.type('[data-testid="gt-interview-form-message-to-candidate-text-area"]', options.message, { delay: 40 + Math.random() * 60 });
+    await page.type('[data-testid="gt-interview-form-message-to-candidate-text-area"]', options.message, { delay: 10 + Math.random() * 15, timeout: 120_000 });
     await jitter(400, 900);
 
     console.log('[Indeed] Enabling hiring team switch...');
