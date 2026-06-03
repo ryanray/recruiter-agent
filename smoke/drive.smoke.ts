@@ -1,10 +1,9 @@
+import 'dotenv/config';
 import { DriveService } from '../src/adapters/drive.js';
 import { loadConfig } from '../src/config.js';
-import 'dotenv/config';
 
 const config = loadConfig();
-const serviceAccountPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH ?? './service-account.json';
-const drive = new DriveService(serviceAccountPath);
+const drive = new DriveService();
 
 console.log('Creating test folder in Caregiver Applicants...');
 const folderId = await drive.createFolder(

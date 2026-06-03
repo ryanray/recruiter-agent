@@ -1,10 +1,9 @@
+import 'dotenv/config';
 import { SheetsService } from '../src/adapters/sheets.js';
 import { loadConfig } from '../src/config.js';
-import 'dotenv/config';
 
 const config = loadConfig();
-const serviceAccountPath = process.env.GOOGLE_SERVICE_ACCOUNT_PATH ?? './service-account.json';
-const sheets = new SheetsService(serviceAccountPath, config.google_sheets.tracker_spreadsheet_id);
+const sheets = new SheetsService(config.google_sheets.tracker_spreadsheet_id);
 
 console.log('Reading active candidates...');
 const candidates = await sheets.getActiveCandidates();

@@ -7,5 +7,5 @@ if (!token) throw new Error('SLACK_BOT_TOKEN not set in .env');
 const slack = new SlackService(token);
 
 console.log('Posting test message to #recruiting-test...');
-await slack.post('#recruiting-test', '🤖 Recruiter agent smoke test — Slack adapter working.');
+await slack.post('#recruiting-private', '🤖 Recruiter agent smoke test — Slack adapter working.');
 console.log('Done.');
