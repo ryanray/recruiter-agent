@@ -39,7 +39,7 @@ export class SheetsService implements SheetsAdapter {
       range: 'Active!A:N',
     });
     const rows = response.data.values ?? [];
-    const rowIndex = rows.findIndex(r => r[0]?.trim() === name.trim());
+    const rowIndex = rows.findIndex((r, i) => i > 0 && r[0]?.trim() === name.trim());
     if (rowIndex === -1) return;
 
     const row = [...(rows[rowIndex] as string[])];
@@ -116,7 +116,7 @@ export class SheetsService implements SheetsAdapter {
       range: `${fromTab}!A:N`,
     });
     const rows = readRes.data.values ?? [];
-    const rowIndex = rows.findIndex(r => (r[0] as string)?.trim() === name.trim());
+    const rowIndex = rows.findIndex((r, i) => i > 0 && (r[0] as string)?.trim() === name.trim());
     if (rowIndex === -1) return;
 
     await sheets.spreadsheets.values.append({
