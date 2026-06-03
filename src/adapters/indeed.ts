@@ -2,6 +2,11 @@ import { readFile } from 'fs/promises';
 import { chromium, type BrowserContext, type Page } from 'playwright';
 import type { IndeedAdapter, Applicant, Interview } from '../types.js';
 
+function jitter(minMs: number, maxMs: number): Promise<void> {
+  const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  return new Promise(resolve => setTimeout(resolve, delay));
+}
+
 // Path to a persistent Chromium profile so Google OAuth sessions survive across runs.
 // On the first run the browser opens and you log in manually; subsequent runs reuse the session.
 const CHROME_PROFILE_DIR = new URL('../../data/chrome-profile', import.meta.url).pathname;
@@ -40,6 +45,7 @@ export class IndeedService implements IndeedAdapter {
     console.log('[Indeed] Navigating to candidate list...');
     await page.goto('https://employers.indeed.com/candidates');
     await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
+    await jitter(800, 1800);
 
     const applicants: Applicant[] = [];
     const items = await page.$$('[data-testid="table-row"]');
@@ -91,8 +97,10 @@ export class IndeedService implements IndeedAdapter {
 
   private async fetchProfileTextInternal(profileUrl: string): Promise<string> {
     const page = await this.getPage();
+    await jitter(500, 1200);
     await page.goto(profileUrl);
     await page.waitForSelector('[data-testid="load-complete"]', { state: 'attached', timeout: 30_000 });
+    await jitter(600, 1400);
 
     const selectors = [
       '[data-testid="ScreenerAnswersRemoteModule"]',
@@ -116,9 +124,14 @@ export class IndeedService implements IndeedAdapter {
 
   async sendMessage(applicantId: string, message: string): Promise<void> {
     const page = await this.getPage();
+    await jitter(500, 1200);
     await page.goto(`https://employers.indeed.com/candidates/${applicantId}/messages`);
     await page.waitForSelector('[data-testid="message-input"]');
-    await page.fill('[data-testid="message-input"]', message);
+    await jitter(800, 1600);
+    await page.click('[data-testid="message-input"]');
+    await jitter(300, 700);
+    await page.type('[data-testid="message-input"]', message, { delay: 40 + Math.random() * 60 });
+    await jitter(500, 1000);
     await page.click('[data-testid="send-message-button"]');
     await page.waitForSelector('[data-testid="message-sent-confirmation"]', { timeout: 10_000 });
   }
@@ -162,8 +175,10 @@ export class IndeedService implements IndeedAdapter {
   async downloadResume(applicantId: string): Promise<Buffer> {
     const page = await this.getPage();
     console.log(`[Indeed] Downloading resume for applicant ${applicantId}...`);
+    await jitter(500, 1200);
     await page.goto(`https://employers.indeed.com/candidates/view?id=${applicantId}`);
     await page.waitForSelector('[data-testid="download-resume-inline"]', { timeout: 30_000 });
+    await jitter(600, 1200);
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.click('[data-testid="download-resume-inline"]'),
