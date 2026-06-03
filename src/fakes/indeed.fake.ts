@@ -18,6 +18,10 @@ export class FakeIndeedAdapter implements IndeedAdapter {
     return [...this.applicants];
   }
 
+  async fetchProfileText(_profileUrl: string): Promise<string> {
+    return 'Fake profile text';
+  }
+
   async sendMessage(applicantId: string, message: string): Promise<void> {
     this.sentMessages.push({ applicantId, message });
   }

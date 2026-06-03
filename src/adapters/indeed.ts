@@ -82,26 +82,14 @@ export class IndeedService implements IndeedAdapter {
     }
 
     console.log(`[Indeed] ${applicants.length} unprocessed candidate(s) to screen.`);
-
-    // Visit each candidate's detail page to extract profile text for screening
-    for (const applicant of applicants) {
-      try {
-        console.log(`[Indeed] Fetching profile text for ${applicant.name}...`);
-        applicant.resumeText = await this.fetchProfileText(applicant.indeedProfileUrl);
-        console.log(`[Indeed] Profile text fetched (${applicant.resumeText?.length ?? 0} chars).`);
-      } catch (err) {
-        console.log(`[Indeed] Could not fetch profile text for ${applicant.name}: ${err instanceof Error ? err.message : err}`);
-        // resumeText stays undefined — screening will handle missing data
-      }
-    }
-
     return applicants;
   }
 
-  // Extracts text from the candidate detail page for Claude screening.
-  // Uses screener answers + experience/skills/certs sections instead of resume PDF
-  // so we have structured text without needing to parse a PDF.
-  private async fetchProfileText(profileUrl: string): Promise<string> {
+  async fetchProfileText(profileUrl: string): Promise<string> {
+    return this.fetchProfileTextInternal(profileUrl);
+  }
+
+  private async fetchProfileTextInternal(profileUrl: string): Promise<string> {
     const page = await this.getPage();
     await page.goto(profileUrl);
     await page.waitForSelector('[data-testid="load-complete"]', { state: 'attached', timeout: 30_000 });

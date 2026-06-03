@@ -50,6 +50,13 @@ export class Agent {
     for (const applicant of applicants) {
       console.log(`\n[Agent] Processing: ${applicant.name} (${applicant.location ?? 'no location'})`);
       try {
+        console.log(`[Agent] Fetching profile text for ${applicant.name}...`);
+        try {
+          applicant.resumeText = await this.indeed.fetchProfileText(applicant.indeedProfileUrl);
+          console.log(`[Agent] Profile text fetched (${applicant.resumeText.length} chars).`);
+        } catch (profileErr) {
+          console.log(`[Agent] Could not fetch profile text: ${profileErr instanceof Error ? profileErr.message : profileErr}`);
+        }
         console.log(`[Agent] Screening ${applicant.name} with Claude...`);
         const screening = await this.screener(applicant, this.config);
         console.log(`[Agent] Decision: ${screening.decision}${screening.reasons.length ? ' — ' + screening.reasons.join('; ') : ''}`);

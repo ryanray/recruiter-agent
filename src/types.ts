@@ -9,7 +9,7 @@ export interface Applicant {
   phone?: string;
   location?: string;
   resumeText?: string;
-  appliedAt: Date;
+  // appliedAt: Date;
   indeedProfileUrl: string;
 }
 
@@ -111,6 +111,7 @@ export interface RunResult {
 
 export interface IndeedAdapter {
   getNewApplications(since: Date): Promise<Applicant[]>;
+  fetchProfileText(profileUrl: string): Promise<string>;
   sendMessage(applicantId: string, message: string): Promise<void>;
   triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void>;
   getBookedInterviews(): Promise<Interview[]>;
