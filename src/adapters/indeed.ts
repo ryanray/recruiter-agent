@@ -40,7 +40,7 @@ export class IndeedService implements IndeedAdapter {
     await page.goto('https://employers.indeed.com/candidates');
     // TODO: Indeed's candidate list selectors — update if the page layout changes.
     // Selectors below are starting points; verify against the live page.
-    await page.waitForSelector('[data-testid="applicant-list"]', { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
 
     const applicants: Applicant[] = [];
     const items = await page.$$('[data-testid="applicant-list-item"]');
