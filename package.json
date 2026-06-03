@@ -8,6 +8,8 @@
   },
   "scripts": {
     "start": "npx tsx src/index.ts",
+    "candidates": "npx tsx src/run-candidates.ts",
+    "act": "npx tsx src/run-act.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
