@@ -2,10 +2,8 @@ import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
   Screener, Config, RunResult, CandidateRow, CandidateStatus,
 } from './types.js';
+import { renderTemplate } from './messages.js';
 import { getGitCommitHash } from './logger.js';
-
-// renderTemplate imported here for Phase 2 (messaging) when re-enabled
-// import { renderTemplate } from './messages.js';
 
 export class Agent {
   constructor(
@@ -17,18 +15,15 @@ export class Agent {
     private config: Config,
   ) {}
 
-  async run(
+  async evaluateCandidates(
     since: Date,
     processedIds: Set<string> = new Set(),
     markProcessed: (id: string) => void = () => {},
   ): Promise<RunResult> {
     const startedAt = new Date();
     const result: RunResult = {
-      startedAt,
-      completedAt: startedAt,
-      durationMs: 0,
-      newApplicantsReviewed: 0,
-      remainingApplicants: 0,
+      startedAt, completedAt: startedAt, durationMs: 0,
+      newApplicantsReviewed: 0, remainingApplicants: 0,
       passed: [], rejected: [], unsure: [],
       bookings: [], coldCandidates: [], errors: [],
       configVersion: getGitCommitHash(),
@@ -38,9 +33,10 @@ export class Agent {
       },
     };
 
-    // Step 1: screen new applicants
+    const evaluatedIds = await this.sheets.getEvaluatedCandidateIds();
+
     let applicants = (await this.indeed.getNewApplications(since))
-      .filter(a => !processedIds.has(a.id));
+      .filter(a => !processedIds.has(a.id) && !evaluatedIds.has(a.id));
 
     const limit = this.config.run.max_candidates_per_run;
     result.remainingApplicants = limit ? Math.max(0, applicants.length - limit) : 0;
@@ -57,48 +53,51 @@ export class Agent {
         } catch (profileErr) {
           console.log(`[Agent] Could not fetch profile text: ${profileErr instanceof Error ? profileErr.message : profileErr}`);
         }
+
         console.log(`[Agent] Screening ${applicant.name} with Claude...`);
         const screening = await this.screener(applicant, this.config);
         console.log(`[Agent] Decision: ${screening.decision}${screening.reasons.length ? ' — ' + screening.reasons.join('; ') : ''}`);
+
         const nameLabel = `${applicant.lastName}, ${applicant.firstName}`;
+        const folderName = `${nameLabel} - ${today()}`;
+
+        console.log(`[Agent] Creating Drive folder: "${folderName}"`);
+        const folderId = await this.drive.createFolder(
+          folderName,
+          this.config.google_drive.awaiting_action_folder_id
+        );
+
+        console.log(`[Agent] Downloading and uploading resume...`);
+        const resume = await this.indeed.downloadResume(applicant.id);
+        await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
+
+        console.log(`[Agent] Copying interview template...`);
+        await this.drive.copyTemplate(
+          this.config.google_drive.interview_template_sheet_id,
+          folderId,
+          `Interview Questions: ${nameLabel} - ${today()}`
+        );
+
+        const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
+        console.log(`[Agent] Drive folder ready: ${folderUrl}`);
+
+        const row = this.buildRow(applicant, screening, 'Awaiting Review');
+        row.driveFolder = folderUrl;
+        row.agentRecommendation = screening.decision;
+        row.humanDecision = '';
+        row.indeedId = applicant.id;
+        row.notes = screening.reasons.join('; ');
+
+        console.log(`[Agent] Adding to Active sheet...`);
+        await this.sheets.addCandidate('Active', row);
 
         if (screening.decision === 'PASS') {
-          // Create Drive folder and upload resume at screening time
-          const folderName = `${nameLabel} - ${today()}`;
-          console.log(`[Agent] Creating Drive folder: "${folderName}"`);
-          const folderId = await this.drive.createFolder(
-            folderName,
-            this.config.google_drive.recruiting_root_folder_id
-          );
-          console.log(`[Agent] Downloading resume...`);
-          const resume = await this.indeed.downloadResume(applicant.id);
-          console.log(`[Agent] Uploading resume to Drive...`);
-          await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
-          console.log(`[Agent] Copying interview template...`);
-          await this.drive.copyTemplate(
-            this.config.google_drive.interview_template_sheet_id,
-            folderId,
-            `Interview Questions: ${nameLabel} - ${today()}`
-          );
-          const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
-          console.log(`[Agent] Drive folder ready: ${folderUrl}`);
-
-          // TODO Phase 2: send intro message and trigger phone screen scheduler
-          // await this.indeed.sendMessage(applicant.id, renderTemplate(this.config.messages.intro, { name: applicant.firstName }));
-          // await this.indeed.triggerScheduler(applicant.id, this.config.scheduling.hiring_team_emails);
-
-          const row = this.buildRow(applicant, screening, 'Screened - Invite Sent');
-          row.driveFolder = folderUrl;
-          console.log(`[Agent] Adding to Active sheet...`);
-          await this.sheets.addCandidate('Active', row);
-
           result.passed.push({
             name: applicant.name,
             location: screening.extractedData.location ?? '',
             experience: screening.extractedData.experienceTypes.join(', '),
             certifications: screening.extractedData.certifications.join(', '),
           });
-
           if (screening.isUrgent) {
             console.log(`[Agent] Strong candidate — posting Slack alert.`);
             await this.slack.post(
@@ -106,40 +105,24 @@ export class Agent {
               `🚨 *Strong candidate:* ${applicant.name} — CNA + ${screening.extractedData.yearsExperience}yr experience\n${applicant.indeedProfileUrl}`
             );
           }
-
         } else if (screening.decision === 'FAIL') {
-          // TODO Phase 2: send rejection message
-          // await this.indeed.sendMessage(applicant.id, renderTemplate(this.config.messages.rejection, { name: applicant.firstName }));
-
-          const row = this.buildRow(applicant, screening, 'Rejected');
-          row.notes = screening.reasons.join('; ');
-          console.log(`[Agent] Adding to Rejected sheet...`);
-          await this.sheets.addCandidate('Rejected', row);
-
           result.rejected.push({
             name: applicant.name,
             location: screening.extractedData.location ?? '',
             experience: '', certifications: '',
             reason: screening.reasons.join('; '),
           });
-
         } else {
-          const row = this.buildRow(applicant, screening, 'UNSURE');
-          row.notes = screening.reasons.join('; ');
-          console.log(`[Agent] Adding to Active sheet as UNSURE, posting Slack...`);
-          await this.sheets.addCandidate('Active', row);
-
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `❓ *Review needed:* ${applicant.name} — ${screening.reasons.join('; ')}\n${applicant.indeedProfileUrl}`
-          );
-
           result.unsure.push({
             name: applicant.name,
             location: screening.extractedData.location ?? '',
             experience: '', certifications: '',
             unclearField: screening.reasons.join('; '),
           });
+          await this.slack.post(
+            this.config.slack.recruiting_channel,
+            `❓ *Review needed:* ${applicant.name} — ${screening.reasons.join('; ')}\n${applicant.indeedProfileUrl}`
+          );
         }
 
         console.log(`[Agent] Done with ${applicant.name}.`);
@@ -156,16 +139,22 @@ export class Agent {
       }
     }
 
-    // TODO Phase 2: handle new interview bookings
-    // const interviews = await this.indeed.getBookedInterviews();
-    // for (const interview of interviews) { ... }
-
-    // TODO Phase 2: check for cold candidates
-    // const active = await this.sheets.getActiveCandidates();
-    // ...
-
     result.completedAt = new Date();
     result.durationMs = result.completedAt.getTime() - startedAt.getTime();
+    return result;
+  }
+
+  async processPendingDecisions(): Promise<void> {
+    // Implemented in Task 5
+  }
+
+  async run(
+    since: Date,
+    processedIds: Set<string> = new Set(),
+    markProcessed: (id: string) => void = () => {},
+  ): Promise<RunResult> {
+    const result = await this.evaluateCandidates(since, processedIds, markProcessed);
+    await this.processPendingDecisions();
     return result;
   }
 
@@ -179,11 +168,15 @@ export class Agent {
       phone: applicant.phone ?? '',
       email: applicant.email ?? '',
       indeedUrl: applicant.indeedProfileUrl,
+      indeedId: '',
       location: screening.extractedData.location ?? '',
       experience: screening.extractedData.experienceTypes.join(', '),
       certifications: screening.extractedData.certifications.join(', '),
+      agentRecommendation: '',
       status,
       lastContact: today(),
+      driveFolder: '',
+      humanDecision: '',
       notes: '',
     };
   }

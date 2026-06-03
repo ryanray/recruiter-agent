@@ -20,6 +20,7 @@ const config: Config = {
   },
   google_drive: {
     recruiting_root_folder_id: 'root-id',
+    awaiting_action_folder_id: 'awaiting-id',
     checkback_folder_id: 'checkback-id',
     rejected_folder_id: 'rejected-id',
     interview_template_sheet_id: 'template-id',
@@ -99,76 +100,75 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     slack = new FakeSlackAdapter();
   });
 
-  it('creates Drive folder, uploads resume, copies template, and adds to Active for PASS', async () => {
+  it('all evaluated candidates go to Active with Awaiting Review regardless of decision', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
 
-    const result = await agent.run(since);
-
-    // Phase 2: messaging not yet implemented
-    expect(indeed.sentMessages).toHaveLength(0);
-    expect(indeed.triggeredSchedulers).toHaveLength(0);
-
-    // Drive setup happens at screening time for PASS candidates
-    expect(drive.folders).toHaveLength(1);
-    expect(drive.folders[0].name).toMatch(/^Doe, Jane - \d{4}-\d{2}-\d{2}$/);
-    expect(drive.folders[0].parentId).toBe('root-id');
-    expect(drive.files).toHaveLength(1);
-    expect(drive.files[0].name).toBe('resume.pdf');
-    expect(drive.copies).toHaveLength(1);
-    expect(drive.copies[0].templateId).toBe('template-id');
+    await agent.evaluateCandidates(since, new Set(), () => {});
 
     expect(sheets.tabs['Active']).toHaveLength(1);
-    expect(sheets.tabs['Active'][0].status).toBe('Screened - Invite Sent');
-    expect(sheets.tabs['Active'][0].driveFolder).toContain('drive.google.com');
-    expect(result.passed).toHaveLength(1);
-    expect(result.rejected).toHaveLength(0);
-    expect(slack.messages).toHaveLength(0);
-  });
-
-  it('adds to Rejected for FAIL — no Drive folder, no Slack alert', async () => {
-    indeed.seedApplicants([makeApplicant()]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => failResult('Too far (35mi)'), config);
-
-    await agent.run(since);
-
-    // Phase 2: messaging not yet implemented
+    expect(sheets.tabs['Active'][0].status).toBe('Awaiting Review');
+    expect(sheets.tabs['Active'][0].agentRecommendation).toBe('PASS');
+    expect(sheets.tabs['Active'][0].indeedId).toBe('app-1');
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('');
+    expect(drive.folders[0].parentId).toBe('awaiting-id');
     expect(indeed.sentMessages).toHaveLength(0);
-    expect(drive.folders).toHaveLength(0); // no Drive folder for rejected candidates
-    expect(sheets.tabs['Rejected']).toHaveLength(1);
-    expect(sheets.tabs['Rejected'][0].notes).toContain('Too far');
-    expect(slack.messages).toHaveLength(0);
+    expect(indeed.triggeredSchedulers).toHaveLength(0);
   });
 
-  it('adds to Active as UNSURE and posts to Slack', async () => {
+  it('FAIL candidate still gets a Drive folder and Active row', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => failResult('Too far (40mi)'), config);
+
+    await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(sheets.tabs['Active']).toHaveLength(1);
+    expect(sheets.tabs['Active'][0].agentRecommendation).toBe('FAIL');
+    expect(sheets.tabs['Active'][0].notes).toContain('Too far');
+    expect(drive.folders).toHaveLength(1);
+    expect(sheets.tabs['Rejected']).toHaveLength(0);
+  });
+
+  it('UNSURE candidate gets Active row and posts Slack alert', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => unsureResult('Cannot determine distance'), config);
 
-    await agent.run(since);
+    await agent.evaluateCandidates(since, new Set(), () => {});
 
-    expect(sheets.tabs['Active'][0].status).toBe('UNSURE');
+    expect(sheets.tabs['Active'][0].agentRecommendation).toBe('UNSURE');
     expect(slack.messages).toHaveLength(1);
     expect(slack.messages[0].channel).toBe('#recruiting');
     expect(slack.messages[0].message).toContain('Review needed');
   });
 
-  it('posts Slack alert for urgent/strong candidate', async () => {
+  it('urgent PASS candidate posts Slack alert and still goes to Awaiting Review', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(true), config);
 
-    await agent.run(since);
+    await agent.evaluateCandidates(since, new Set(), () => {});
 
-    expect(drive.folders).toHaveLength(1); // Drive folder still created
+    expect(sheets.tabs['Active'][0].status).toBe('Awaiting Review');
     expect(slack.messages).toHaveLength(1);
     expect(slack.messages[0].message).toContain('Strong candidate');
   });
 
-  it('skips already-processed candidates', async () => {
+  it('skips candidates whose indeedId is already in Sheets', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ indeedId: 'app-1' }));
+    indeed.seedApplicants([makeApplicant({ id: 'app-1' })]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+
+    const result = await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(result.newApplicantsReviewed).toBe(0);
+    expect(drive.folders).toHaveLength(0);
+  });
+
+  it('skips already-processed candidates (from state.json processedIds)', async () => {
     indeed.seedApplicants([makeApplicant({ id: 'already-done' }), makeApplicant({ id: 'new-one' })]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
     const alreadyProcessed = new Set(['already-done']);
 
-    const result = await agent.run(since, alreadyProcessed);
+    const result = await agent.evaluateCandidates(since, alreadyProcessed, () => {});
 
     expect(result.newApplicantsReviewed).toBe(1);
     expect(drive.folders).toHaveLength(1);
@@ -183,7 +183,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     ]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), limitedConfig);
 
-    const result = await agent.run(since);
+    const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
     expect(result.newApplicantsReviewed).toBe(2);
     expect(result.remainingApplicants).toBe(1);
@@ -201,20 +201,13 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       return passResult();
     }, config);
 
-    const result = await agent.run(since);
+    const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].description).toContain('Bad Actor');
     expect(result.passed).toHaveLength(1);
     expect(result.passed[0].name).toBe('Good Person');
   });
-
-  // TODO Phase 2: re-enable when interview scheduling is implemented
-  // it('creates Drive folder, uploads resume, copies template, and posts Slack on booking', ...)
-
-  // TODO Phase 2: re-enable when cold candidate follow-up is implemented
-  // it('flags cold candidate and posts Slack alert', ...)
-  // it('does not flag Interview Scheduled candidates as cold', ...)
 });
 
 describe('FakeSheetsAdapter new methods', () => {
