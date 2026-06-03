@@ -104,7 +104,7 @@ export class IndeedService implements IndeedAdapter {
   private async fetchProfileText(profileUrl: string): Promise<string> {
     const page = await this.getPage();
     await page.goto(profileUrl);
-    await page.waitForSelector('[data-testid="load-complete"]', { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="load-complete"]', { state: 'attached', timeout: 30_000 });
 
     const selectors = [
       '[data-testid="ScreenerAnswersRemoteModule"]',
