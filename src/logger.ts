@@ -1,5 +1,35 @@
 import { execSync } from 'child_process';
+import { createWriteStream, mkdirSync } from 'fs';
+import { join } from 'path';
 import type { RunResult } from './types.js';
+
+export function startFileLog(label: string): () => void {
+  mkdirSync('logs', { recursive: true });
+  const timestamp = new Date().toISOString().replace(/:/g, '-').slice(0, 19);
+  const logPath = join('logs', `${timestamp}-${label}.log`);
+  const stream = createWriteStream(logPath, { flags: 'a' });
+
+  const write = (args: unknown[]) => {
+    stream.write(args.map(a => (typeof a === 'string' ? a : String(a))).join(' ') + '\n');
+  };
+
+  const origLog = console.log.bind(console);
+  const origWarn = console.warn.bind(console);
+  const origError = console.error.bind(console);
+
+  console.log = (...args) => { origLog(...args); write(args); };
+  console.warn = (...args) => { origWarn(...args); write(args); };
+  console.error = (...args) => { origError(...args); write(args); };
+
+  console.log(`[Log] Writing to ${logPath}`);
+
+  return () => {
+    console.log = origLog;
+    console.warn = origWarn;
+    console.error = origError;
+    stream.end();
+  };
+}
 
 export function formatRunLog(result: RunResult): string {
   const totalSecs = Math.round(result.durationMs / 1000);

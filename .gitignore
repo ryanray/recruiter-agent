@@ -5,3 +5,5 @@ state.json
 *.smoke.ts.log
 service-account.json
 data/chrome-profile/
+
+logs/

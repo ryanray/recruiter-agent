@@ -2,13 +2,14 @@ import 'dotenv/config';
 import { loadConfig } from './config.js';
 import { readState, writeState, markProcessed } from './state.js';
 import { screenApplicant } from './screening.js';
-import { formatRunLog } from './logger.js';
+import { formatRunLog, startFileLog } from './logger.js';
 import { Agent } from './agent.js';
 import { IndeedService } from './adapters/indeed.js';
 import { SheetsService } from './adapters/sheets.js';
 import { DriveService } from './adapters/drive.js';
 import { SlackService } from './adapters/slack.js';
 
+const stopLog = startFileLog('start');
 const config = loadConfig();
 
 const slackToken = process.env.SLACK_BOT_TOKEN;
@@ -51,4 +52,5 @@ try {
   process.exit(1);
 } finally {
   await indeed.close();
+  stopLog();
 }
