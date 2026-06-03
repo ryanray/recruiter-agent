@@ -5,6 +5,7 @@ import { FakeSheetsAdapter } from '../src/fakes/sheets.fake.js';
 import { FakeDriveAdapter } from '../src/fakes/drive.fake.js';
 import { FakeSlackAdapter } from '../src/fakes/slack.fake.js';
 import type { Applicant, Config, ScreeningResult } from '../src/types.js';
+import type { CandidateRow } from '../src/types.js';
 
 const config: Config = {
   run: { trigger: 'manual', max_candidates_per_run: null },
@@ -28,6 +29,18 @@ const config: Config = {
   google_sheets: { tracker_spreadsheet_id: 'sheet-id' },
   slack: { recruiting_channel: '#recruiting' },
 };
+
+function makeCandidate(overrides: Partial<CandidateRow> = {}): CandidateRow {
+  return {
+    name: 'Jane Doe', phone: '801-555-1234', email: 'jane@example.com',
+    indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+    indeedId: 'app-1', location: 'Sandy, UT',
+    experience: 'home_care', certifications: '',
+    agentRecommendation: 'PASS', status: 'Awaiting Review',
+    lastContact: '2026-06-03', driveFolder: '', humanDecision: '', notes: '',
+    ...overrides,
+  };
+}
 
 function makeApplicant(overrides: Partial<Applicant> = {}): Applicant {
   return {
@@ -203,4 +216,37 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
   // TODO Phase 2: re-enable when cold candidate follow-up is implemented
   // it('flags cold candidate and posts Slack alert', ...)
   // it('does not flag Interview Scheduled candidates as cold', ...)
+});
+
+describe('FakeSheetsAdapter new methods', () => {
+  let sheets: FakeSheetsAdapter;
+
+  beforeEach(() => { sheets = new FakeSheetsAdapter(); });
+
+  it('getEvaluatedCandidateIds returns indeedIds from Active, Rejected, and Checkback Later', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ indeedId: 'id-1' }));
+    sheets.tabs['Rejected'].push(makeCandidate({ indeedId: 'id-2' }));
+    sheets.tabs['Checkback Later'].push(makeCandidate({ indeedId: 'id-3' }));
+    const ids = await sheets.getEvaluatedCandidateIds();
+    expect(ids.has('id-1')).toBe(true);
+    expect(ids.has('id-2')).toBe(true);
+    expect(ids.has('id-3')).toBe(true);
+    expect(ids.size).toBe(3);
+  });
+
+  it('getCandidatesForAction returns only Active rows with non-empty humanDecision', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ humanDecision: 'Approve' }));
+    sheets.tabs['Active'].push(makeCandidate({ humanDecision: '' }));
+    const rows = await sheets.getCandidatesForAction();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].humanDecision).toBe('Approve');
+  });
+
+  it('moveCandidate copies row to destination tab and removes from source', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ name: 'Jane Doe', indeedId: 'app-1' }));
+    await sheets.moveCandidate('Jane Doe', 'Active', 'Rejected');
+    expect(sheets.tabs['Active']).toHaveLength(0);
+    expect(sheets.tabs['Rejected']).toHaveLength(1);
+    expect(sheets.tabs['Rejected'][0].name).toBe('Jane Doe');
+  });
 });
