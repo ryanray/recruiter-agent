@@ -149,15 +149,15 @@ export class Agent {
     console.log(`\n[Agent] ${candidates.length} candidate(s) with pending human decisions.`);
 
     for (const candidate of candidates) {
-      const decision = candidate.humanDecision.trim();
+      const decision = candidate.humanDecision.trim().toLowerCase();
       const folderId = candidate.driveFolder?.match(/folders\/([^/?]+)/)?.[1];
       const firstName = candidate.name.includes(',')
         ? candidate.name.split(',')[1]?.trim() ?? candidate.name
         : candidate.name.split(' ')[0] ?? candidate.name;
-      console.log(`[Agent] Acting on ${candidate.name}: ${decision}`);
+      console.log(`[Agent] Acting on ${candidate.name}: ${candidate.humanDecision.trim()}`);
 
       try {
-        if (decision === 'Approve') {
+        if (decision === 'approve') {
           await this.indeed.sendMessage(
             candidate.indeedId,
             renderTemplate(this.config.messages.intro, { name: firstName })
@@ -174,7 +174,7 @@ export class Agent {
             { humanDecision: '', lastContact: today() }
           );
 
-        } else if (decision === 'Reject') {
+        } else if (decision === 'reject') {
           await this.indeed.sendMessage(
             candidate.indeedId,
             renderTemplate(this.config.messages.rejection, { name: firstName })
@@ -184,13 +184,13 @@ export class Agent {
           }
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Rejected');
 
-        } else if (decision === 'Checkback Later') {
+        } else if (decision === 'checkback later') {
           if (folderId) {
             await this.drive.moveFolder(folderId, this.config.google_drive.checkback_folder_id);
           }
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Checkback Later');
 
-        } else if (decision === 'Hold') {
+        } else if (decision === 'hold') {
           await this.slack.post(
             this.config.slack.recruiting_channel,
             `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n${candidate.indeedUrl}`
@@ -199,6 +199,9 @@ export class Agent {
             candidate.name, candidate.status,
             { humanDecision: '' }
           );
+        } else {
+          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold`);
+          continue;
         }
 
         console.log(`[Agent] Done acting on ${candidate.name}.`);
