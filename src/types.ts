@@ -117,8 +117,7 @@ export interface IndeedAdapter {
   getNewApplications(since: Date): Promise<Applicant[]>;
   fetchProfileText(profileUrl: string): Promise<string>;
   markSentiment(applicantId: string, sentiment: 'yes' | 'maybe' | 'no'): Promise<void>;
-  sendMessage(applicantId: string, message: string): Promise<void>;
-  triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void>;
+  setupInterview(applicantId: string, options: { message: string; hiringTeamEmails: string[] }): Promise<void>;
   getBookedInterviews(): Promise<Interview[]>;
   downloadResume(applicantId: string): Promise<Buffer>;
 }
@@ -166,8 +165,7 @@ export interface Config {
     hiring_team_emails: string[];
   };
   messages: {
-    intro: string;
-    rejection: string;
+    interview_request: string;
   };
   google_drive: {
     recruiting_root_folder_id: string;
