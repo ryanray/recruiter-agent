@@ -145,7 +145,65 @@ export class Agent {
   }
 
   async processPendingDecisions(): Promise<void> {
-    // Implemented in Task 5
+    const candidates = await this.sheets.getCandidatesForAction();
+    console.log(`\n[Agent] ${candidates.length} candidate(s) with pending human decisions.`);
+
+    for (const candidate of candidates) {
+      const decision = candidate.humanDecision.trim();
+      const folderId = candidate.driveFolder?.match(/folders\/([^/?]+)/)?.[1];
+      const firstName = candidate.name.split(' ')[0] ?? candidate.name;
+      console.log(`[Agent] Acting on ${candidate.name}: ${decision}`);
+
+      try {
+        if (decision === 'Approve') {
+          await this.indeed.sendMessage(
+            candidate.indeedId,
+            renderTemplate(this.config.messages.intro, { name: firstName })
+          );
+          await this.indeed.triggerScheduler(
+            candidate.indeedId,
+            this.config.scheduling.hiring_team_emails
+          );
+          if (folderId) {
+            await this.drive.moveFolder(folderId, this.config.google_drive.recruiting_root_folder_id);
+          }
+          await this.sheets.updateCandidateStatus(
+            candidate.name, 'Screened - Invite Sent',
+            { humanDecision: '', lastContact: today() }
+          );
+
+        } else if (decision === 'Reject') {
+          await this.indeed.sendMessage(
+            candidate.indeedId,
+            renderTemplate(this.config.messages.rejection, { name: firstName })
+          );
+          if (folderId) {
+            await this.drive.moveFolder(folderId, this.config.google_drive.rejected_folder_id);
+          }
+          await this.sheets.moveCandidate(candidate.name, 'Active', 'Rejected');
+
+        } else if (decision === 'Checkback Later') {
+          if (folderId) {
+            await this.drive.moveFolder(folderId, this.config.google_drive.checkback_folder_id);
+          }
+          await this.sheets.moveCandidate(candidate.name, 'Active', 'Checkback Later');
+
+        } else if (decision === 'Hold') {
+          await this.slack.post(
+            this.config.slack.recruiting_channel,
+            `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n${candidate.indeedUrl}`
+          );
+          await this.sheets.updateCandidateStatus(
+            candidate.name, candidate.status,
+            { humanDecision: '' }
+          );
+        }
+
+        console.log(`[Agent] Done acting on ${candidate.name}.`);
+      } catch (err) {
+        console.error(`[Agent] Error acting on ${candidate.name}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
   }
 
   async run(

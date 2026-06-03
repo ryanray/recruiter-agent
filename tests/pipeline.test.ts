@@ -208,6 +208,86 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(result.passed).toHaveLength(1);
     expect(result.passed[0].name).toBe('Good Person');
   });
+
+  describe('Agent.processPendingDecisions', () => {
+    let indeed: FakeIndeedAdapter;
+    let sheets: FakeSheetsAdapter;
+    let drive: FakeDriveAdapter;
+    let slack: FakeSlackAdapter;
+    let agent: Agent;
+
+    beforeEach(() => {
+      indeed = new FakeIndeedAdapter();
+      sheets = new FakeSheetsAdapter();
+      drive = new FakeDriveAdapter();
+      slack = new FakeSlackAdapter();
+      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      // Pre-seed a folder so moves have something to reference
+      drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'awaiting-id' });
+    });
+
+    it('Approve: sends intro message, triggers scheduler, moves folder to root, updates status, clears humanDecision', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Approve',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(indeed.sentMessages).toHaveLength(1);
+      expect(indeed.sentMessages[0].message).toContain('Jane');
+      expect(indeed.triggeredSchedulers[0].applicantId).toBe('app-1');
+      expect(drive.moves[0].folderId).toBe('folder-1');
+      expect(drive.moves[0].targetParentId).toBe('root-id');
+      expect(sheets.tabs['Active'][0].status).toBe('Screened - Invite Sent');
+      expect(sheets.tabs['Active'][0].humanDecision).toBe('');
+    });
+
+    it('Reject: sends rejection, moves folder to rejected folder, moves row to Rejected tab', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Reject',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(indeed.sentMessages[0].message).toContain('appreciate');
+      expect(drive.moves[0].targetParentId).toBe('rejected-id');
+      expect(sheets.tabs['Active']).toHaveLength(0);
+      expect(sheets.tabs['Rejected']).toHaveLength(1);
+      expect(indeed.triggeredSchedulers).toHaveLength(0);
+    });
+
+    it('Checkback Later: moves folder and row, sends no message', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Checkback Later',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(indeed.sentMessages).toHaveLength(0);
+      expect(drive.moves[0].targetParentId).toBe('checkback-id');
+      expect(sheets.tabs['Active']).toHaveLength(0);
+      expect(sheets.tabs['Checkback Later']).toHaveLength(1);
+    });
+
+    it('Hold: posts Slack alert, clears humanDecision, no folder move', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Hold', agentRecommendation: 'UNSURE',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+        notes: 'Cannot determine distance',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(indeed.sentMessages).toHaveLength(0);
+      expect(drive.moves).toHaveLength(0);
+      expect(slack.messages).toHaveLength(1);
+      expect(slack.messages[0].message).toContain('Jane Doe');
+      expect(sheets.tabs['Active'][0].humanDecision).toBe('');
+    });
+  });
 });
 
 describe('FakeSheetsAdapter new methods', () => {
