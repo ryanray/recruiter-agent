@@ -151,7 +151,9 @@ export class Agent {
     for (const candidate of candidates) {
       const decision = candidate.humanDecision.trim();
       const folderId = candidate.driveFolder?.match(/folders\/([^/?]+)/)?.[1];
-      const firstName = candidate.name.split(' ')[0] ?? candidate.name;
+      const firstName = candidate.name.includes(',')
+        ? candidate.name.split(',')[1]?.trim() ?? candidate.name
+        : candidate.name.split(' ')[0] ?? candidate.name;
       console.log(`[Agent] Acting on ${candidate.name}: ${decision}`);
 
       try {
