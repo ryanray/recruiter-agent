@@ -4,8 +4,7 @@ run:
 
 screening:
   required:
-    - valid_license_and_transportation
-    - within_20_miles_south_jordan
+    - within_30_miles_south_jordan
   preferred:
     - cna_certification
     - cpr_first_aid
