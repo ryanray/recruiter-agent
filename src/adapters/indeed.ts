@@ -35,44 +35,46 @@ export class IndeedService implements IndeedAdapter {
     }
   }
 
-  async getNewApplications(since: Date): Promise<Applicant[]> {
+  async getNewApplications(_since: Date): Promise<Applicant[]> {
     const page = await this.getPage();
     await page.goto('https://employers.indeed.com/candidates');
-    // TODO: Indeed's candidate list selectors — update if the page layout changes.
-    // Selectors below are starting points; verify against the live page.
     await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
 
     const applicants: Applicant[] = [];
-    const items = await page.$$('[data-testid="applicant-list-item"]');
+    const items = await page.$$('[data-testid="table-row"]');
 
     for (const item of items) {
-      // Skip candidates already marked as shortlisted, undecided, or no interest
-      // TODO: verify selector — this targets any existing interest status badge
-      const alreadyMarked = await item.$('[data-testid="interest-status"]') !== null;
+      // Skip candidates already marked (shortlisted, undecided, or no interest)
+      const alreadyMarked = await item.$('[data-testid^="ApplicantSentiment-"][data-is-selected="true"]') !== null;
       if (alreadyMarked) continue;
 
-      const appliedText = await item.$eval('[data-testid="applied-date"]', el => el.textContent ?? '');
-      const appliedAt = parseIndeedDate(appliedText);
-      if (appliedAt <= since) continue;
+      const nameEl = await item.$('[data-testid="NameCell"]');
+      const name = ((await nameEl?.textContent()) ?? '').trim();
+      const href = (await nameEl?.getAttribute('href')) ?? '';
+      const idMatch = href.match(/[?&]id=([a-z0-9]+)/);
+      const id = idMatch?.[1] ?? '';
+      if (!id || !name) continue;
 
-      const name = await item.$eval('[data-testid="applicant-name"]', el => el.textContent?.trim() ?? '');
-      const id = await item.getAttribute('data-applicant-id') ?? '';
-      const profileUrl = await item.$eval('a', el => el.href);
+      const profileUrl = `https://employers.indeed.com${href}`;
+      const location = await item.$eval(
+        '[data-testid="CandidateInfoColumn-location"]',
+        el => el.textContent?.trim() ?? ''
+      ).catch(() => '');
 
       const [firstName, ...rest] = name.split(' ');
       applicants.push({
         id, name,
         firstName: firstName ?? name,
         lastName: rest.join(' '),
+        location,
         indeedProfileUrl: profileUrl,
-        appliedAt,
       });
     }
 
-    // Fetch resume text for each applicant
+    // Visit each candidate's detail page to extract profile text for screening
     for (const applicant of applicants) {
       try {
-        applicant.resumeText = await this.fetchResumeText(applicant.indeedProfileUrl);
+        applicant.resumeText = await this.fetchProfileText(applicant.indeedProfileUrl);
       } catch {
         // resumeText stays undefined — screening will handle missing data
       }
@@ -81,11 +83,32 @@ export class IndeedService implements IndeedAdapter {
     return applicants;
   }
 
-  private async fetchResumeText(profileUrl: string): Promise<string> {
+  // Extracts text from the candidate detail page for Claude screening.
+  // Uses screener answers + experience/skills/certs sections instead of resume PDF
+  // so we have structured text without needing to parse a PDF.
+  private async fetchProfileText(profileUrl: string): Promise<string> {
     const page = await this.getPage();
     await page.goto(profileUrl);
-    await page.waitForSelector('[data-testid="resume-section"]', { timeout: 30_000 });
-    return page.$eval('[data-testid="resume-section"]', el => el.textContent ?? '');
+    await page.waitForSelector('[data-testid="load-complete"]', { timeout: 30_000 });
+
+    const selectors = [
+      '[data-testid="ScreenerAnswersRemoteModule"]',
+      '[data-testid="profile-section-Experience"]',
+      '[data-testid="profile-section-Skills"]',
+      '[data-testid="profile-section-Certifications & licenses"]',
+      '[data-testid="profile-section-Education"]',
+    ];
+
+    const texts: string[] = [];
+    for (const sel of selectors) {
+      try {
+        const text = await page.$eval(sel, el => el.textContent?.trim() ?? '');
+        if (text) texts.push(text);
+      } catch {
+        // section not present on this profile
+      }
+    }
+    return texts.join('\n\n');
   }
 
   async sendMessage(applicantId: string, message: string): Promise<void> {
@@ -102,7 +125,6 @@ export class IndeedService implements IndeedAdapter {
     await page.goto(`https://employers.indeed.com/candidates/${applicantId}`);
     await page.waitForSelector('[data-testid="schedule-interview-button"]', { timeout: 30_000 });
     await page.click('[data-testid="schedule-interview-button"]');
-    // TODO: verify selector against live Indeed DOM
     if (hiringTeamEmails.length > 0) {
       await page.waitForSelector('[data-testid="hiring-team-emails"]', { timeout: 30_000 });
       await page.fill('[data-testid="hiring-team-emails"]', hiringTeamEmails.join(', '));
@@ -136,10 +158,11 @@ export class IndeedService implements IndeedAdapter {
 
   async downloadResume(applicantId: string): Promise<Buffer> {
     const page = await this.getPage();
-    await page.goto(`https://employers.indeed.com/candidates/${applicantId}`);
+    await page.goto(`https://employers.indeed.com/candidates/view?id=${applicantId}`);
+    await page.waitForSelector('[data-testid="download-resume-inline"]', { timeout: 30_000 });
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('[data-testid="download-resume-button"]'),
+      page.click('[data-testid="download-resume-inline"]'),
     ]);
     const path = await download.path();
     if (!path) throw new Error('Resume download failed: no path');
@@ -151,25 +174,4 @@ export class IndeedService implements IndeedAdapter {
     this.context = null;
     this.page = null;
   }
-}
-
-function parseIndeedDate(text: string): Date {
-  const trimmed = text.trim();
-  if (trimmed.includes('ago')) {
-    const dayMatch = trimmed.match(/(\d+)\s+day/);
-    if (dayMatch) {
-      const d = new Date();
-      d.setDate(d.getDate() - parseInt(dayMatch[1], 10));
-      return d;
-    }
-    const hourMatch = trimmed.match(/(\d+)\s+hour/);
-    if (hourMatch) {
-      const d = new Date();
-      d.setHours(d.getHours() - parseInt(hourMatch[1], 10));
-      return d;
-    }
-    // "X minutes ago", "just now", or any other "ago" string — treat as now
-    return new Date();
-  }
-  return new Date(trimmed);
 }

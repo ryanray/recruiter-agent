@@ -34,8 +34,7 @@ function makeApplicant(overrides: Partial<Applicant> = {}): Applicant {
     id: 'app-1', name: 'Jane Doe', firstName: 'Jane', lastName: 'Doe',
     email: 'jane@example.com', phone: '801-555-1234', location: 'Sandy, UT',
     resumeText: 'CNA, 2 years home care',
-    appliedAt: new Date('2026-06-01T08:00:00Z'),
-    indeedProfileUrl: 'https://employers.indeed.com/applicants/1',
+    indeedProfileUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
     ...overrides,
   };
 }
@@ -74,7 +73,7 @@ function unsureResult(field: string): ScreeningResult {
   };
 }
 
-describe('Agent.run', () => {
+describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
   let indeed: FakeIndeedAdapter;
   let sheets: FakeSheetsAdapter;
   let drive: FakeDriveAdapter;
@@ -88,30 +87,42 @@ describe('Agent.run', () => {
     slack = new FakeSlackAdapter();
   });
 
-  it('sends intro message, triggers scheduler, and adds to Active for PASS', async () => {
+  it('creates Drive folder, uploads resume, copies template, and adds to Active for PASS', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
 
     const result = await agent.run(since);
 
-    expect(indeed.sentMessages).toHaveLength(1);
-    expect(indeed.sentMessages[0].message).toContain('Jane');
-    expect(indeed.triggeredSchedulers[0].applicantId).toBe('app-1');
-    expect(indeed.triggeredSchedulers[0].hiringTeamEmails).toEqual([]);
+    // Phase 2: messaging not yet implemented
+    expect(indeed.sentMessages).toHaveLength(0);
+    expect(indeed.triggeredSchedulers).toHaveLength(0);
+
+    // Drive setup happens at screening time for PASS candidates
+    expect(drive.folders).toHaveLength(1);
+    expect(drive.folders[0].name).toMatch(/^Doe, Jane - \d{4}-\d{2}-\d{2}$/);
+    expect(drive.folders[0].parentId).toBe('root-id');
+    expect(drive.files).toHaveLength(1);
+    expect(drive.files[0].name).toBe('resume.pdf');
+    expect(drive.copies).toHaveLength(1);
+    expect(drive.copies[0].templateId).toBe('template-id');
+
     expect(sheets.tabs['Active']).toHaveLength(1);
     expect(sheets.tabs['Active'][0].status).toBe('Screened - Invite Sent');
+    expect(sheets.tabs['Active'][0].driveFolder).toContain('drive.google.com');
     expect(result.passed).toHaveLength(1);
     expect(result.rejected).toHaveLength(0);
     expect(slack.messages).toHaveLength(0);
   });
 
-  it('sends rejection and adds to Rejected for FAIL — no Slack alert', async () => {
+  it('adds to Rejected for FAIL — no Drive folder, no Slack alert', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => failResult('Too far (35mi)'), config);
 
     await agent.run(since);
 
-    expect(indeed.sentMessages[0].message).toContain('appreciate');
+    // Phase 2: messaging not yet implemented
+    expect(indeed.sentMessages).toHaveLength(0);
+    expect(drive.folders).toHaveLength(0); // no Drive folder for rejected candidates
     expect(sheets.tabs['Rejected']).toHaveLength(1);
     expect(sheets.tabs['Rejected'][0].notes).toContain('Too far');
     expect(slack.messages).toHaveLength(0);
@@ -135,77 +146,28 @@ describe('Agent.run', () => {
 
     await agent.run(since);
 
+    expect(drive.folders).toHaveLength(1); // Drive folder still created
     expect(slack.messages).toHaveLength(1);
     expect(slack.messages[0].message).toContain('Strong candidate');
   });
 
-  it('creates Drive folder, uploads resume, copies template, and posts Slack on booking', async () => {
-    indeed.seedInterviews([{
-      applicantId: 'app-1', applicantName: 'Jane Doe',
-      scheduledAt: new Date('2026-06-03T14:00:00Z'),
-      indeedInterviewId: 'interview-1',
-    }]);
-    sheets.tabs['Active'].push({
-      name: 'Jane Doe', phone: '', email: '', indeedUrl: '', location: '',
-      experience: '', certifications: '', status: 'Screened - Invite Sent',
-      lastContact: '2026-06-01', notes: '',
-    });
+  it('skips already-processed candidates', async () => {
+    indeed.seedApplicants([makeApplicant({ id: 'already-done' }), makeApplicant({ id: 'new-one' })]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+    const alreadyProcessed = new Set(['already-done']);
 
-    await agent.run(new Date());
+    const result = await agent.run(since, alreadyProcessed);
 
+    expect(result.newApplicantsReviewed).toBe(1);
     expect(drive.folders).toHaveLength(1);
-    expect(drive.folders[0].name).toMatch(/^Doe, Jane - \d{4}-\d{2}-\d{2}$/);
-    expect(drive.folders[0].parentId).toBe('root-id');
-    expect(drive.files).toHaveLength(1);
-    expect(drive.files[0].name).toBe('resume.pdf');
-    expect(drive.copies).toHaveLength(1);
-    expect(drive.copies[0].templateId).toBe('template-id');
-    const updatedCandidate = sheets.tabs['Active'].find(c => c.name === 'Jane Doe');
-    expect(updatedCandidate?.status).toBe('Interview Scheduled');
-    expect(updatedCandidate?.driveFolder).toContain('drive.google.com');
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Interview scheduled');
-  });
-
-  it('flags cold candidate and posts Slack alert', async () => {
-    const fourDaysAgo = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
-    sheets.tabs['Active'].push({
-      name: 'Cold Carl', phone: '', email: '', indeedUrl: 'https://indeed.com/carl',
-      location: '', experience: '', certifications: '',
-      status: 'Screened - Invite Sent', lastContact: fourDaysAgo, notes: '',
-    });
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
-
-    const result = await agent.run(new Date());
-
-    expect(result.coldCandidates).toHaveLength(1);
-    expect(result.coldCandidates[0].name).toBe('Cold Carl');
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Cold Carl');
-    expect(slack.messages[0].message).toContain('Cold');
-  });
-
-  it('does not flag Interview Scheduled candidates as cold', async () => {
-    const fourDaysAgo = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
-    sheets.tabs['Active'].push({
-      name: 'Jane Scheduled', phone: '', email: '', indeedUrl: '',
-      location: '', experience: '', certifications: '',
-      status: 'Interview Scheduled', lastContact: fourDaysAgo, notes: '',
-    });
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
-
-    const result = await agent.run(new Date());
-
-    expect(result.coldCandidates).toHaveLength(0);
   });
 
   it('respects max_candidates_per_run', async () => {
     const limitedConfig = { ...config, run: { ...config.run, max_candidates_per_run: 2 } };
     indeed.seedApplicants([
-      makeApplicant({ id: '1', name: 'A A', firstName: 'A', appliedAt: new Date('2026-06-01T01:00:00Z') }),
-      makeApplicant({ id: '2', name: 'B B', firstName: 'B', appliedAt: new Date('2026-06-01T02:00:00Z') }),
-      makeApplicant({ id: '3', name: 'C C', firstName: 'C', appliedAt: new Date('2026-06-01T03:00:00Z') }),
+      makeApplicant({ id: '1', name: 'A A', firstName: 'A', lastName: 'A' }),
+      makeApplicant({ id: '2', name: 'B B', firstName: 'B', lastName: 'B' }),
+      makeApplicant({ id: '3', name: 'C C', firstName: 'C', lastName: 'C' }),
     ]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), limitedConfig);
 
@@ -234,4 +196,11 @@ describe('Agent.run', () => {
     expect(result.passed).toHaveLength(1);
     expect(result.passed[0].name).toBe('Good Person');
   });
+
+  // TODO Phase 2: re-enable when interview scheduling is implemented
+  // it('creates Drive folder, uploads resume, copies template, and posts Slack on booking', ...)
+
+  // TODO Phase 2: re-enable when cold candidate follow-up is implemented
+  // it('flags cold candidate and posts Slack alert', ...)
+  // it('does not flag Interview Scheduled candidates as cold', ...)
 });

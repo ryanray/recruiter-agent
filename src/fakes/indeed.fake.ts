@@ -14,8 +14,8 @@ export class FakeIndeedAdapter implements IndeedAdapter {
     this.interviews = interviews;
   }
 
-  async getNewApplications(since: Date): Promise<Applicant[]> {
-    return this.applicants.filter(a => a.appliedAt > since);
+  async getNewApplications(_since: Date): Promise<Applicant[]> {
+    return [...this.applicants];
   }
 
   async sendMessage(applicantId: string, message: string): Promise<void> {

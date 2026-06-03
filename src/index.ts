@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { loadConfig } from './config.js';
-import { readState, writeState } from './state.js';
+import { readState, writeState, markProcessed } from './state.js';
 import { screenApplicant } from './screening.js';
 import { formatRunLog } from './logger.js';
 import { Agent } from './agent.js';
@@ -21,6 +21,7 @@ const slack = new SlackService(slackToken);
 
 const state = readState();
 const since = state?.lastRunAt ? new Date(state.lastRunAt) : new Date(0);
+const processedIds = new Set(state?.processedIds ?? []);
 
 console.log(`Starting recruiter agent run. Checking applications since: ${since.toISOString()}`);
 
@@ -33,13 +34,14 @@ const timeout = setTimeout(() => {
 }, 30 * 60 * 1000);
 
 try {
-  const result = await agent.run(since);
+  const result = await agent.run(since, processedIds, (id) => markProcessed(id));
   clearTimeout(timeout);
 
   const log = formatRunLog(result);
   console.log('\n' + log);
 
-  writeState({ lastRunAt: result.startedAt.toISOString() });
+  // Update lastRunAt and preserve accumulated processedIds
+  writeState({ lastRunAt: result.startedAt.toISOString(), processedIds: [...processedIds] });
   console.log(`\nRun complete. Processed ${result.newApplicantsReviewed} applicants.`);
 } catch (err) {
   clearTimeout(timeout);

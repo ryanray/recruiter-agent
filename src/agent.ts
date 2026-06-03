@@ -2,8 +2,10 @@ import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
   Screener, Config, RunResult, CandidateRow, CandidateStatus,
 } from './types.js';
-import { renderTemplate } from './messages.js';
 import { getGitCommitHash } from './logger.js';
+
+// renderTemplate imported here for Phase 2 (messaging) when re-enabled
+// import { renderTemplate } from './messages.js';
 
 export class Agent {
   constructor(
@@ -15,7 +17,11 @@ export class Agent {
     private config: Config,
   ) {}
 
-  async run(since: Date): Promise<RunResult> {
+  async run(
+    since: Date,
+    processedIds: Set<string> = new Set(),
+    markProcessed: (id: string) => void = () => {},
+  ): Promise<RunResult> {
     const startedAt = new Date();
     const result: RunResult = {
       startedAt,
@@ -33,7 +39,9 @@ export class Agent {
     };
 
     // Step 1: screen new applicants
-    let applicants = await this.indeed.getNewApplications(since);
+    let applicants = (await this.indeed.getNewApplications(since))
+      .filter(a => !processedIds.has(a.id));
+
     const limit = this.config.run.max_candidates_per_run;
     result.remainingApplicants = limit ? Math.max(0, applicants.length - limit) : 0;
     if (limit) applicants = applicants.slice(0, limit);
@@ -42,15 +50,31 @@ export class Agent {
     for (const applicant of applicants) {
       try {
         const screening = await this.screener(applicant, this.config);
+        const nameLabel = `${applicant.lastName}, ${applicant.firstName}`;
 
         if (screening.decision === 'PASS') {
-          await this.indeed.sendMessage(
-            applicant.id,
-            renderTemplate(this.config.messages.intro, { name: applicant.firstName })
+          // Create Drive folder and upload resume at screening time
+          const folderName = `${nameLabel} - ${today()}`;
+          const folderId = await this.drive.createFolder(
+            folderName,
+            this.config.google_drive.recruiting_root_folder_id
           );
-          await this.indeed.triggerScheduler(applicant.id, this.config.scheduling.hiring_team_emails);
+          const resume = await this.indeed.downloadResume(applicant.id);
+          await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
+          await this.drive.copyTemplate(
+            this.config.google_drive.interview_template_sheet_id,
+            folderId,
+            `Interview Questions: ${nameLabel} - ${today()}`
+          );
+          const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
 
-          await this.sheets.addCandidate('Active', this.buildRow(applicant, screening, 'Screened - Invite Sent'));
+          // TODO Phase 2: send intro message and trigger phone screen scheduler
+          // await this.indeed.sendMessage(applicant.id, renderTemplate(this.config.messages.intro, { name: applicant.firstName }));
+          // await this.indeed.triggerScheduler(applicant.id, this.config.scheduling.hiring_team_emails);
+
+          const row = this.buildRow(applicant, screening, 'Screened - Invite Sent');
+          row.driveFolder = folderUrl;
+          await this.sheets.addCandidate('Active', row);
 
           result.passed.push({
             name: applicant.name,
@@ -67,10 +91,8 @@ export class Agent {
           }
 
         } else if (screening.decision === 'FAIL') {
-          await this.indeed.sendMessage(
-            applicant.id,
-            renderTemplate(this.config.messages.rejection, { name: applicant.firstName })
-          );
+          // TODO Phase 2: send rejection message
+          // await this.indeed.sendMessage(applicant.id, renderTemplate(this.config.messages.rejection, { name: applicant.firstName }));
 
           const row = this.buildRow(applicant, screening, 'Rejected');
           row.notes = screening.reasons.join('; ');
@@ -101,6 +123,8 @@ export class Agent {
           });
         }
 
+        markProcessed(applicant.id);
+
       } catch (err) {
         result.errors.push({
           description: `Failed to process ${applicant.name}`,
@@ -110,85 +134,13 @@ export class Agent {
       }
     }
 
-    // Step 2: handle new interview bookings
-    const interviews = await this.indeed.getBookedInterviews();
-    for (const interview of interviews) {
-      try {
-        const nameParts = interview.applicantName.split(' ');
-        const firstName = nameParts[0] ?? interview.applicantName;
-        const lastName = nameParts.slice(1).join(' ');
-        const nameLabel = `${lastName}, ${firstName}`;
-        const folderName = `${nameLabel} - ${today()}`;
-        const folderId = await this.drive.createFolder(
-          folderName,
-          this.config.google_drive.recruiting_root_folder_id
-        );
+    // TODO Phase 2: handle new interview bookings
+    // const interviews = await this.indeed.getBookedInterviews();
+    // for (const interview of interviews) { ... }
 
-        const resume = await this.indeed.downloadResume(interview.applicantId);
-        await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
-
-        await this.drive.copyTemplate(
-          this.config.google_drive.interview_template_sheet_id,
-          folderId,
-          `Interview Questions: ${nameLabel} - ${today()}`
-        );
-
-        const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
-
-        await this.sheets.updateCandidateStatus(interview.applicantName, 'Interview Scheduled', {
-          driveFolder: folderUrl,
-          lastContact: today(),
-        });
-
-        await this.slack.post(
-          this.config.slack.recruiting_channel,
-          `📅 *Interview scheduled:* ${interview.applicantName}\nTime: ${interview.scheduledAt.toLocaleString()}\nFolder: ${folderUrl}`
-        );
-
-        result.bookings.push({
-          name: interview.applicantName,
-          scheduledAt: interview.scheduledAt,
-          driveFolderUrl: folderUrl,
-        });
-
-      } catch (err) {
-        result.errors.push({
-          description: `Failed to set up Drive folder for ${interview.applicantName}`,
-          reason: err instanceof Error ? err.message : String(err),
-          action: 'Slack alert sent, candidate stays Active without folder link',
-        });
-        await this.slack.post(
-          this.config.slack.recruiting_channel,
-          `⚠️ *Drive folder creation failed* for ${interview.applicantName}. Manual setup needed.`
-        ).catch((alertErr: unknown) => {
-          result.errors.push({
-            description: `Slack alert also failed for ${interview.applicantName}`,
-            reason: alertErr instanceof Error ? alertErr.message : String(alertErr),
-            action: 'Manual intervention needed',
-          });
-        });
-      }
-    }
-
-    // Step 3: check for cold candidates
-    const active = await this.sheets.getActiveCandidates();
-    const coldDays = this.config.scheduling.cold_candidate_days;
-    const now = new Date();
-
-    for (const candidate of active) {
-      if (candidate.status !== 'Screened - Invite Sent') continue;
-      const lastContact = new Date(candidate.lastContact);
-      const daysSince = Math.floor((now.getTime() - lastContact.getTime()) / 86_400_000);
-
-      if (daysSince >= coldDays) {
-        await this.sheets.updateCandidateStatus(candidate.name, 'Cold');
-        await this.slack.post(
-          this.config.slack.recruiting_channel,
-          `❄️ *Cold candidate:* ${candidate.name} — no response in ${daysSince} days\n${candidate.indeedUrl}`
-        );
-        result.coldCandidates.push({ name: candidate.name, daysSinceContact: daysSince });
-      }
-    }
+    // TODO Phase 2: check for cold candidates
+    // const active = await this.sheets.getActiveCandidates();
+    // ...
 
     result.completedAt = new Date();
     result.durationMs = result.completedAt.getTime() - startedAt.getTime();
