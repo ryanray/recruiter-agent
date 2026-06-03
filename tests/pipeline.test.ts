@@ -241,6 +241,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(drive.moves[0].targetParentId).toBe('root-id');
       expect(sheets.tabs['Active'][0].status).toBe('Screened - Invite Sent');
       expect(sheets.tabs['Active'][0].humanDecision).toBe('');
+      expect(sheets.tabs['Active'][0].lastContact).toBeTruthy();
     });
 
     it('Reject: sends rejection, moves folder to rejected folder, moves row to Rejected tab', async () => {
@@ -285,6 +286,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(drive.moves).toHaveLength(0);
       expect(slack.messages).toHaveLength(1);
       expect(slack.messages[0].message).toContain('Jane Doe');
+      expect(slack.messages[0].message).toContain('UNSURE');
+      expect(slack.messages[0].message).toContain('Cannot determine distance');
+      expect(slack.messages[0].message).toContain('https://employers.indeed.com/candidates/view?id=app-1');
       expect(sheets.tabs['Active'][0].humanDecision).toBe('');
     });
   });
