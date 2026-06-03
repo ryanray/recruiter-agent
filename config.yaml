@@ -23,6 +23,7 @@ messages:
 
 google_drive:
   recruiting_root_folder_id: "1jYcRwUmAdjKs17ajEto4weKbkicP4CX3"
+  awaiting_action_folder_id: "PLACEHOLDER_AWAITING_ACTION_FOLDER_ID"
   checkback_folder_id: "1qSMovk7JilLTJC3iscz5M8GYdRBMXnZj"
   rejected_folder_id: "1Sf0m8rRklyNxkOT-OVwO1l9_H5i47aMJ"
   interview_template_sheet_id: "1XE-v4MQom3PJfkfzk0cIdOYfOMYp3Qlo"
