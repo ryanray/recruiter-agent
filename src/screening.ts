@@ -1,10 +1,24 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Applicant, ScreeningResult, ExtractedProfile, Config } from './types.js';
+import { getDrivingDistanceMiles } from './distance.js';
 
 const client = new Anthropic();
 
 export async function screenApplicant(applicant: Applicant, config: Config): Promise<ScreeningResult> {
   const profile = await extractProfile(applicant);
+
+  // Replace Claude's distance guess with a real Google Maps driving distance
+  const location = profile.location ?? applicant.location;
+  if (location) {
+    const miles = await getDrivingDistanceMiles(location);
+    if (miles !== null) {
+      console.log(`[Screening] Driving distance from South Jordan to "${location}": ${miles} miles`);
+      profile.distanceMiles = miles;
+    } else {
+      console.log(`[Screening] Could not get Maps distance for "${location}" — using Claude's estimate`);
+    }
+  }
+
   return applyRules(profile, config);
 }
 
@@ -23,7 +37,6 @@ Resume text: ${applicant.resumeText ?? 'not provided'}
 Return exactly this JSON structure:
 {
   "location": "city, state string or null if not found",
-  "distanceMiles": estimated driving miles from South Jordan Utah (84095) as a number, or null if you cannot determine location,
   "hasLicense": true if they mention valid driver's license, false if they say they don't have one, null if not mentioned,
   "hasTransportation": true if they mention reliable transportation or a car, false if they say they don't have transportation, null if not mentioned,
   "certifications": array of strings from this list only: ["CNA", "CPR", "First Aid"] — only include ones explicitly mentioned,
