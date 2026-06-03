@@ -116,6 +116,7 @@ export interface RunResult {
 export interface IndeedAdapter {
   getNewApplications(since: Date): Promise<Applicant[]>;
   fetchProfileText(profileUrl: string): Promise<string>;
+  markSentiment(applicantId: string, sentiment: 'yes' | 'maybe' | 'no'): Promise<void>;
   sendMessage(applicantId: string, message: string): Promise<void>;
   triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void>;
   getBookedInterviews(): Promise<Interview[]>;

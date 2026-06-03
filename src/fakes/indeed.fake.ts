@@ -5,6 +5,7 @@ export class FakeIndeedAdapter implements IndeedAdapter {
   private interviews: Interview[] = [];
   sentMessages: { applicantId: string; message: string }[] = [];
   triggeredSchedulers: { applicantId: string; hiringTeamEmails: string[] }[] = [];
+  markedSentiments: { applicantId: string; sentiment: string }[] = [];
 
   seedApplicants(applicants: Applicant[]): void {
     this.applicants = applicants;
@@ -20,6 +21,10 @@ export class FakeIndeedAdapter implements IndeedAdapter {
 
   async fetchProfileText(_profileUrl: string): Promise<string> {
     return 'Fake profile text';
+  }
+
+  async markSentiment(applicantId: string, sentiment: 'yes' | 'maybe' | 'no'): Promise<void> {
+    this.markedSentiments.push({ applicantId, sentiment });
   }
 
   async sendMessage(applicantId: string, message: string): Promise<void> {

@@ -122,6 +122,18 @@ export class IndeedService implements IndeedAdapter {
     return texts.join('\n\n');
   }
 
+  async markSentiment(applicantId: string, sentiment: 'yes' | 'maybe' | 'no'): Promise<void> {
+    const page = await this.getPage();
+    console.log(`[Indeed] Marking sentiment "${sentiment}" for applicant ${applicantId}...`);
+    await jitter(400, 900);
+    await page.goto(`https://employers.indeed.com/candidates/view?id=${applicantId}`);
+    await page.waitForSelector(`[data-testid="ApplicantSentiment-${sentiment}"]`, { timeout: 30_000 });
+    await jitter(500, 1000);
+    await page.click(`[data-testid="ApplicantSentiment-${sentiment}"]`);
+    await jitter(300, 700);
+    console.log(`[Indeed] Sentiment "${sentiment}" marked.`);
+  }
+
   async sendMessage(applicantId: string, message: string): Promise<void> {
     const page = await this.getPage();
     await jitter(500, 1200);

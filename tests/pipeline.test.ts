@@ -226,7 +226,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'awaiting-id' });
     });
 
-    it('Approve: sends intro message, triggers scheduler, moves folder to root, updates status, clears humanDecision', async () => {
+    it('Approve: clears humanDecision first, marks yes sentiment, sends intro, triggers scheduler, moves folder, updates status', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Approve',
         driveFolder: 'https://drive.google.com/drive/folders/folder-1',
@@ -234,6 +234,8 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
       await agent.processPendingDecisions();
 
+      expect(indeed.markedSentiments).toHaveLength(1);
+      expect(indeed.markedSentiments[0]).toEqual({ applicantId: 'app-1', sentiment: 'yes' });
       expect(indeed.sentMessages).toHaveLength(1);
       expect(indeed.sentMessages[0].message).toContain('Jane');
       expect(indeed.triggeredSchedulers[0].applicantId).toBe('app-1');
@@ -244,7 +246,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(sheets.tabs['Active'][0].lastContact).toBeTruthy();
     });
 
-    it('Reject: sends rejection, moves folder to rejected folder, moves row to Rejected tab', async () => {
+    it('Reject: clears humanDecision first, marks no sentiment, sends rejection, moves folder and row', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Reject',
         driveFolder: 'https://drive.google.com/drive/folders/folder-1',
@@ -252,6 +254,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
       await agent.processPendingDecisions();
 
+      expect(indeed.markedSentiments[0]).toEqual({ applicantId: 'app-1', sentiment: 'no' });
       expect(indeed.sentMessages[0].message).toContain('appreciate');
       expect(drive.moves[0].targetParentId).toBe('rejected-id');
       expect(sheets.tabs['Active']).toHaveLength(0);
@@ -259,7 +262,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(indeed.triggeredSchedulers).toHaveLength(0);
     });
 
-    it('Checkback Later: moves folder and row, sends no message', async () => {
+    it('Checkback Later: clears humanDecision first, marks yes sentiment, moves folder and row, sends no message', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Checkback Later',
         driveFolder: 'https://drive.google.com/drive/folders/folder-1',
@@ -267,13 +270,14 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
       await agent.processPendingDecisions();
 
+      expect(indeed.markedSentiments[0]).toEqual({ applicantId: 'app-1', sentiment: 'yes' });
       expect(indeed.sentMessages).toHaveLength(0);
       expect(drive.moves[0].targetParentId).toBe('checkback-id');
       expect(sheets.tabs['Active']).toHaveLength(0);
       expect(sheets.tabs['Checkback Later']).toHaveLength(1);
     });
 
-    it('Hold: posts Slack alert, clears humanDecision, no folder move', async () => {
+    it('Hold: clears humanDecision first, posts Slack alert, no sentiment change, no folder move', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Hold', agentRecommendation: 'UNSURE',
         indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
@@ -282,6 +286,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
       await agent.processPendingDecisions();
 
+      expect(indeed.markedSentiments).toHaveLength(0);
       expect(indeed.sentMessages).toHaveLength(0);
       expect(drive.moves).toHaveLength(0);
       expect(slack.messages).toHaveLength(1);

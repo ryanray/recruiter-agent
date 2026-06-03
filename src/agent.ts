@@ -158,46 +158,75 @@ export class Agent {
 
       try {
         if (decision === 'approve') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+
+          console.log(`[Agent] Marking sentiment "yes" on Indeed...`);
+          await this.indeed.markSentiment(candidate.indeedId, 'yes');
+
+          console.log(`[Agent] Sending intro message to ${candidate.name}...`);
           await this.indeed.sendMessage(
             candidate.indeedId,
             renderTemplate(this.config.messages.intro, { name: firstName })
           );
+
+          console.log(`[Agent] Triggering phone screen scheduler...`);
           await this.indeed.triggerScheduler(
             candidate.indeedId,
             this.config.scheduling.hiring_team_emails
           );
+
           if (folderId) {
+            console.log(`[Agent] Moving Drive folder to recruiting root...`);
             await this.drive.moveFolder(folderId, this.config.google_drive.recruiting_root_folder_id);
           }
+
           await this.sheets.updateCandidateStatus(
-            candidate.name, 'Screened - Invite Sent',
-            { humanDecision: '', lastContact: today() }
+            candidate.name, 'Screened - Invite Sent', { lastContact: today() }
           );
 
         } else if (decision === 'reject') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+
+          console.log(`[Agent] Marking sentiment "no" on Indeed...`);
+          await this.indeed.markSentiment(candidate.indeedId, 'no');
+
+          console.log(`[Agent] Sending rejection message to ${candidate.name}...`);
           await this.indeed.sendMessage(
             candidate.indeedId,
             renderTemplate(this.config.messages.rejection, { name: firstName })
           );
+
           if (folderId) {
+            console.log(`[Agent] Moving Drive folder to _Rejected...`);
             await this.drive.moveFolder(folderId, this.config.google_drive.rejected_folder_id);
           }
+
+          console.log(`[Agent] Moving row to Rejected tab...`);
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Rejected');
 
         } else if (decision === 'checkback later') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+
+          console.log(`[Agent] Marking sentiment "yes" on Indeed...`);
+          await this.indeed.markSentiment(candidate.indeedId, 'yes');
+
           if (folderId) {
+            console.log(`[Agent] Moving Drive folder to _Checkback Later...`);
             await this.drive.moveFolder(folderId, this.config.google_drive.checkback_folder_id);
           }
+
+          console.log(`[Agent] Moving row to Checkback Later tab...`);
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Checkback Later');
 
         } else if (decision === 'hold') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name} and posting Slack alert...`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
           await this.slack.post(
             this.config.slack.recruiting_channel,
             `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n${candidate.indeedUrl}`
-          );
-          await this.sheets.updateCandidateStatus(
-            candidate.name, candidate.status,
-            { humanDecision: '' }
           );
         } else {
           console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold`);
