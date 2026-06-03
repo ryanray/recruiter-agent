@@ -37,23 +37,32 @@ export class IndeedService implements IndeedAdapter {
 
   async getNewApplications(_since: Date): Promise<Applicant[]> {
     const page = await this.getPage();
+    console.log('[Indeed] Navigating to candidate list...');
     await page.goto('https://employers.indeed.com/candidates');
     await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
 
     const applicants: Applicant[] = [];
     const items = await page.$$('[data-testid="table-row"]');
+    console.log(`[Indeed] Found ${items.length} row(s) on the page.`);
 
     for (const item of items) {
       // Skip candidates already marked (shortlisted, undecided, or no interest)
       const alreadyMarked = await item.$('[data-testid^="ApplicantSentiment-"][data-is-selected="true"]') !== null;
-      if (alreadyMarked) continue;
+      if (alreadyMarked) {
+        const skippedName = ((await item.$eval('[data-testid="NameCell"]', el => el.textContent).catch(() => '')) ?? '').trim();
+        console.log(`[Indeed] Skipping already-marked candidate: ${skippedName}`);
+        continue;
+      }
 
       const nameEl = await item.$('[data-testid="NameCell"]');
       const name = ((await nameEl?.textContent()) ?? '').trim();
       const href = (await nameEl?.getAttribute('href')) ?? '';
       const idMatch = href.match(/[?&]id=([a-z0-9]+)/);
       const id = idMatch?.[1] ?? '';
-      if (!id || !name) continue;
+      if (!id || !name) {
+        console.log('[Indeed] Skipping row — could not extract name or ID.');
+        continue;
+      }
 
       const profileUrl = `https://employers.indeed.com${href}`;
       const location = await item.$eval(
@@ -61,6 +70,7 @@ export class IndeedService implements IndeedAdapter {
         el => el.textContent?.trim() ?? ''
       ).catch(() => '');
 
+      console.log(`[Indeed] Found candidate: ${name} (${location || 'no location'}) id=${id}`);
       const [firstName, ...rest] = name.split(' ');
       applicants.push({
         id, name,
@@ -71,11 +81,16 @@ export class IndeedService implements IndeedAdapter {
       });
     }
 
+    console.log(`[Indeed] ${applicants.length} unprocessed candidate(s) to screen.`);
+
     // Visit each candidate's detail page to extract profile text for screening
     for (const applicant of applicants) {
       try {
+        console.log(`[Indeed] Fetching profile text for ${applicant.name}...`);
         applicant.resumeText = await this.fetchProfileText(applicant.indeedProfileUrl);
-      } catch {
+        console.log(`[Indeed] Profile text fetched (${applicant.resumeText?.length ?? 0} chars).`);
+      } catch (err) {
+        console.log(`[Indeed] Could not fetch profile text for ${applicant.name}: ${err instanceof Error ? err.message : err}`);
         // resumeText stays undefined — screening will handle missing data
       }
     }
@@ -158,6 +173,7 @@ export class IndeedService implements IndeedAdapter {
 
   async downloadResume(applicantId: string): Promise<Buffer> {
     const page = await this.getPage();
+    console.log(`[Indeed] Downloading resume for applicant ${applicantId}...`);
     await page.goto(`https://employers.indeed.com/candidates/view?id=${applicantId}`);
     await page.waitForSelector('[data-testid="download-resume-inline"]', { timeout: 30_000 });
     const [download] = await Promise.all([
@@ -166,7 +182,9 @@ export class IndeedService implements IndeedAdapter {
     ]);
     const path = await download.path();
     if (!path) throw new Error('Resume download failed: no path');
-    return readFile(path);
+    const buf = await readFile(path);
+    console.log(`[Indeed] Resume downloaded (${buf.length} bytes).`);
+    return buf;
   }
 
   async close(): Promise<void> {

@@ -48,25 +48,33 @@ export class Agent {
     result.newApplicantsReviewed = applicants.length;
 
     for (const applicant of applicants) {
+      console.log(`\n[Agent] Processing: ${applicant.name} (${applicant.location ?? 'no location'})`);
       try {
+        console.log(`[Agent] Screening ${applicant.name} with Claude...`);
         const screening = await this.screener(applicant, this.config);
+        console.log(`[Agent] Decision: ${screening.decision}${screening.reasons.length ? ' — ' + screening.reasons.join('; ') : ''}`);
         const nameLabel = `${applicant.lastName}, ${applicant.firstName}`;
 
         if (screening.decision === 'PASS') {
           // Create Drive folder and upload resume at screening time
           const folderName = `${nameLabel} - ${today()}`;
+          console.log(`[Agent] Creating Drive folder: "${folderName}"`);
           const folderId = await this.drive.createFolder(
             folderName,
             this.config.google_drive.recruiting_root_folder_id
           );
+          console.log(`[Agent] Downloading resume...`);
           const resume = await this.indeed.downloadResume(applicant.id);
+          console.log(`[Agent] Uploading resume to Drive...`);
           await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
+          console.log(`[Agent] Copying interview template...`);
           await this.drive.copyTemplate(
             this.config.google_drive.interview_template_sheet_id,
             folderId,
             `Interview Questions: ${nameLabel} - ${today()}`
           );
           const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
+          console.log(`[Agent] Drive folder ready: ${folderUrl}`);
 
           // TODO Phase 2: send intro message and trigger phone screen scheduler
           // await this.indeed.sendMessage(applicant.id, renderTemplate(this.config.messages.intro, { name: applicant.firstName }));
@@ -74,6 +82,7 @@ export class Agent {
 
           const row = this.buildRow(applicant, screening, 'Screened - Invite Sent');
           row.driveFolder = folderUrl;
+          console.log(`[Agent] Adding to Active sheet...`);
           await this.sheets.addCandidate('Active', row);
 
           result.passed.push({
@@ -84,6 +93,7 @@ export class Agent {
           });
 
           if (screening.isUrgent) {
+            console.log(`[Agent] Strong candidate — posting Slack alert.`);
             await this.slack.post(
               this.config.slack.recruiting_channel,
               `🚨 *Strong candidate:* ${applicant.name} — CNA + ${screening.extractedData.yearsExperience}yr experience\n${applicant.indeedProfileUrl}`
@@ -96,6 +106,7 @@ export class Agent {
 
           const row = this.buildRow(applicant, screening, 'Rejected');
           row.notes = screening.reasons.join('; ');
+          console.log(`[Agent] Adding to Rejected sheet...`);
           await this.sheets.addCandidate('Rejected', row);
 
           result.rejected.push({
@@ -108,6 +119,7 @@ export class Agent {
         } else {
           const row = this.buildRow(applicant, screening, 'UNSURE');
           row.notes = screening.reasons.join('; ');
+          console.log(`[Agent] Adding to Active sheet as UNSURE, posting Slack...`);
           await this.sheets.addCandidate('Active', row);
 
           await this.slack.post(
@@ -123,12 +135,15 @@ export class Agent {
           });
         }
 
+        console.log(`[Agent] Done with ${applicant.name}.`);
         markProcessed(applicant.id);
 
       } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.error(`[Agent] ERROR processing ${applicant.name}: ${reason}`);
         result.errors.push({
           description: `Failed to process ${applicant.name}`,
-          reason: err instanceof Error ? err.message : String(err),
+          reason,
           action: 'Candidate skipped — manual review needed',
         });
       }
