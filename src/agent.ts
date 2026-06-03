@@ -154,6 +154,9 @@ export class Agent {
       const firstName = candidate.name.includes(',')
         ? candidate.name.split(',')[1]?.trim() ?? candidate.name
         : candidate.name.split(' ')[0] ?? candidate.name;
+      const lastName = candidate.name.includes(',')
+        ? candidate.name.split(',')[0]?.trim() ?? ''
+        : candidate.name.split(' ').slice(1).join(' ');
       console.log(`[Agent] Acting on ${candidate.name}: ${candidate.humanDecision.trim()}`);
 
       try {
@@ -164,17 +167,14 @@ export class Agent {
           console.log(`[Agent] Marking sentiment "yes" on Indeed...`);
           await this.indeed.markSentiment(candidate.indeedId, 'yes');
 
-          console.log(`[Agent] Sending intro message to ${candidate.name}...`);
-          await this.indeed.sendMessage(
-            candidate.indeedId,
-            renderTemplate(this.config.messages.intro, { name: firstName })
-          );
-
-          console.log(`[Agent] Triggering phone screen scheduler...`);
-          await this.indeed.triggerScheduler(
-            candidate.indeedId,
-            this.config.scheduling.hiring_team_emails
-          );
+          console.log(`[Agent] Setting up interview for ${candidate.name}...`);
+          await this.indeed.setupInterview(candidate.indeedId, {
+            message: renderTemplate(this.config.messages.interview_request, {
+              FIRST_NAME: firstName,
+              LAST_NAME: lastName,
+            }),
+            hiringTeamEmails: this.config.scheduling.hiring_team_emails,
+          });
 
           if (folderId) {
             console.log(`[Agent] Moving Drive folder to recruiting root...`);
@@ -189,14 +189,8 @@ export class Agent {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
 
-          console.log(`[Agent] Marking sentiment "no" on Indeed...`);
+          console.log(`[Agent] Marking sentiment "no" on Indeed (automated follow-up sends in 3 days)...`);
           await this.indeed.markSentiment(candidate.indeedId, 'no');
-
-          console.log(`[Agent] Sending rejection message to ${candidate.name}...`);
-          await this.indeed.sendMessage(
-            candidate.indeedId,
-            renderTemplate(this.config.messages.rejection, { name: firstName })
-          );
 
           if (folderId) {
             console.log(`[Agent] Moving Drive folder to _Rejected...`);
