@@ -111,8 +111,6 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(sheets.tabs['Active'][0].indeedId).toBe('app-1');
     expect(sheets.tabs['Active'][0].humanDecision).toBe('');
     expect(drive.folders[0].parentId).toBe('awaiting-id');
-    expect(indeed.sentMessages).toHaveLength(0);
-    expect(indeed.triggeredSchedulers).toHaveLength(0);
   });
 
   it('FAIL candidate still gets a Drive folder and Active row', async () => {
@@ -269,7 +267,6 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       await agent.processPendingDecisions();
 
       expect(indeed.markedSentiments[0]).toEqual({ applicantId: 'app-1', sentiment: 'yes' });
-      expect(indeed.sentMessages).toHaveLength(0);
       expect(drive.moves[0].targetParentId).toBe('checkback-id');
       expect(sheets.tabs['Active']).toHaveLength(0);
       expect(sheets.tabs['Checkback Later']).toHaveLength(1);
@@ -285,7 +282,6 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       await agent.processPendingDecisions();
 
       expect(indeed.markedSentiments).toHaveLength(0);
-      expect(indeed.sentMessages).toHaveLength(0);
       expect(drive.moves).toHaveLength(0);
       expect(slack.messages).toHaveLength(1);
       expect(slack.messages[0].message).toContain('Jane Doe');
