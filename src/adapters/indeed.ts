@@ -134,30 +134,57 @@ export class IndeedService implements IndeedAdapter {
     console.log(`[Indeed] Sentiment "${sentiment}" marked.`);
   }
 
-  async sendMessage(applicantId: string, message: string): Promise<void> {
+  async setupInterview(applicantId: string, options: { message: string; hiringTeamEmails: string[] }): Promise<void> {
     const page = await this.getPage();
-    await jitter(500, 1200);
-    await page.goto(`https://employers.indeed.com/candidates/${applicantId}/messages`);
-    await page.waitForSelector('[data-testid="message-input"]');
-    await jitter(800, 1600);
-    await page.click('[data-testid="message-input"]');
-    await jitter(300, 700);
-    await page.type('[data-testid="message-input"]', message, { delay: 40 + Math.random() * 60 });
-    await jitter(500, 1000);
-    await page.click('[data-testid="send-message-button"]');
-    await page.waitForSelector('[data-testid="message-sent-confirmation"]', { timeout: 10_000 });
-  }
+    console.log(`[Indeed] Setting up interview for applicant ${applicantId}...`);
 
-  async triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void> {
-    const page = await this.getPage();
-    await page.goto(`https://employers.indeed.com/candidates/${applicantId}`);
-    await page.waitForSelector('[data-testid="schedule-interview-button"]', { timeout: 30_000 });
-    await page.click('[data-testid="schedule-interview-button"]');
-    if (hiringTeamEmails.length > 0) {
-      await page.waitForSelector('[data-testid="hiring-team-emails"]', { timeout: 30_000 });
-      await page.fill('[data-testid="hiring-team-emails"]', hiringTeamEmails.join(', '));
+    await jitter(500, 1200);
+    await page.goto(`https://employers.indeed.com/candidates/view?id=${applicantId}`);
+    await page.waitForSelector('[data-testid="prioritized-schedule-interview-button"]', { timeout: 30_000 });
+    await jitter(600, 1200);
+
+    console.log('[Indeed] Clicking Setup Interview button...');
+    await page.click('[data-testid="prioritized-schedule-interview-button"]');
+    await page.waitForSelector('[data-testid="ScheduleInterviewModal-SendInterviewButton"]', { timeout: 30_000 });
+    await jitter(600, 1200);
+
+    console.log('[Indeed] Setting duration...');
+    await page.click('[data-testid="InterviewTimesSelector-duration"]');
+    await jitter(300, 600);
+    await page.click('[data-testid="InterviewTimesSelector-duration-30"]');
+    await jitter(400, 800);
+
+    console.log('[Indeed] Setting format to phone...');
+    await page.click('[data-testid="gt-interview-details-interview-type"]');
+    await jitter(400, 800);
+
+    console.log('[Indeed] Filling message...');
+    await page.click('[data-testid="gt-interview-form-message-to-candidate-text-area"]');
+    await jitter(300, 700);
+    await page.fill('[data-testid="gt-interview-form-message-to-candidate-text-area"]', '');
+    await page.type('[data-testid="gt-interview-form-message-to-candidate-text-area"]', options.message, { delay: 40 + Math.random() * 60 });
+    await jitter(400, 900);
+
+    console.log('[Indeed] Enabling hiring team switch...');
+    await page.click('[data-testid="gt-interview-details-hiring-team-switch"]');
+    await jitter(400, 800);
+
+    if (options.hiringTeamEmails.length > 0) {
+      console.log('[Indeed] Filling hiring team emails...');
+      await page.click('[data-testid="gt-interview-details-interviewer-list"]');
+      await jitter(300, 600);
+      await page.type('[data-testid="gt-interview-details-interviewer-list"]', options.hiringTeamEmails.join(', '), { delay: 40 + Math.random() * 60 });
+      await jitter(400, 800);
     }
-    await page.waitForSelector('[data-testid="scheduler-sent-confirmation"]', { timeout: 30_000 });
+
+    console.log('[Indeed] Selecting availability-based scheduling...');
+    await page.click('[data-value="availabilityBasedScheduling"]');
+    await jitter(400, 800);
+
+    console.log('[Indeed] Sending interview request...');
+    await page.click('[data-testid="ScheduleInterviewModal-SendInterviewButton"]');
+    await page.waitForSelector('[data-testid="ScheduleInterviewModal-SendInterviewButton"]', { state: 'detached', timeout: 30_000 });
+    console.log('[Indeed] Interview request sent successfully.');
   }
 
   async getBookedInterviews(): Promise<Interview[]> {
