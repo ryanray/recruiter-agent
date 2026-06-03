@@ -9,7 +9,7 @@ import type { Applicant, Config, ScreeningResult } from '../src/types.js';
 const config: Config = {
   run: { trigger: 'manual', max_candidates_per_run: null },
   screening: {
-    required: ['valid_license_and_transportation', 'within_20_miles_south_jordan'],
+    required: ['valid_license_and_transportation', 'within_30_miles_south_jordan'],
     preferred: ['cna_certification'],
     disqualifying: [],
   },

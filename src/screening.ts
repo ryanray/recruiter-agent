@@ -78,13 +78,15 @@ export function applyRules(profile: ExtractedProfile, config: Config): Screening
 
   const required = config.screening.required;
 
-  if (required.includes('within_20_miles_south_jordan')) {
+  const distanceRule = required.find(r => /^within_\d+_miles_south_jordan$/.test(r));
+  if (distanceRule) {
+    const maxMiles = parseInt(distanceRule.match(/\d+/)![0], 10);
     if (profile.distanceMiles === null) {
       if (decision !== 'FAIL') decision = 'UNSURE';
       reasons.push('Could not determine distance from South Jordan');
-    } else if (profile.distanceMiles > 20) {
+    } else if (profile.distanceMiles > maxMiles) {
       decision = 'FAIL';
-      reasons.push(`Location is ${profile.distanceMiles} miles from South Jordan (max 20)`);
+      reasons.push(`Location is ${profile.distanceMiles} miles from South Jordan (max ${maxMiles})`);
     }
   }
 
