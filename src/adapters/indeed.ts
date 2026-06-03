@@ -25,10 +25,12 @@ export class IndeedService implements IndeedAdapter {
   private async ensureLoggedIn(): Promise<void> {
     const page = this.page!;
     await page.goto('https://employers.indeed.com/candidates');
-    // If redirected to a login page, wait for the user to log in manually
+    // If redirected away (login page, Google OAuth, etc.), wait for the user to complete sign-in
     if (!page.url().includes('employers.indeed.com/candidates')) {
       console.log('Not logged in to Indeed. Please log in via the browser window that just opened.');
-      await page.waitForURL('**/employers.indeed.com/candidates**', { timeout: 120_000 });
+      console.log('You have 5 minutes to complete sign-in.');
+      await page.waitForURL('**/employers.indeed.com/candidates**', { timeout: 300_000 });
+      await page.waitForLoadState('domcontentloaded');
       console.log('Indeed login detected. Continuing...');
     }
   }
@@ -38,7 +40,7 @@ export class IndeedService implements IndeedAdapter {
     await page.goto('https://employers.indeed.com/candidates');
     // TODO: Indeed's candidate list selectors — update if the page layout changes.
     // Selectors below are starting points; verify against the live page.
-    await page.waitForSelector('[data-testid="applicant-list"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="applicant-list"]', { timeout: 30_000 });
 
     const applicants: Applicant[] = [];
     const items = await page.$$('[data-testid="applicant-list-item"]');
@@ -82,7 +84,7 @@ export class IndeedService implements IndeedAdapter {
   private async fetchResumeText(profileUrl: string): Promise<string> {
     const page = await this.getPage();
     await page.goto(profileUrl);
-    await page.waitForSelector('[data-testid="resume-section"]', { timeout: 10_000 });
+    await page.waitForSelector('[data-testid="resume-section"]', { timeout: 30_000 });
     return page.$eval('[data-testid="resume-section"]', el => el.textContent ?? '');
   }
 
@@ -98,20 +100,20 @@ export class IndeedService implements IndeedAdapter {
   async triggerScheduler(applicantId: string, hiringTeamEmails: string[]): Promise<void> {
     const page = await this.getPage();
     await page.goto(`https://employers.indeed.com/candidates/${applicantId}`);
-    await page.waitForSelector('[data-testid="schedule-interview-button"]');
+    await page.waitForSelector('[data-testid="schedule-interview-button"]', { timeout: 30_000 });
     await page.click('[data-testid="schedule-interview-button"]');
     // TODO: verify selector against live Indeed DOM
     if (hiringTeamEmails.length > 0) {
-      await page.waitForSelector('[data-testid="hiring-team-emails"]', { timeout: 10_000 });
+      await page.waitForSelector('[data-testid="hiring-team-emails"]', { timeout: 30_000 });
       await page.fill('[data-testid="hiring-team-emails"]', hiringTeamEmails.join(', '));
     }
-    await page.waitForSelector('[data-testid="scheduler-sent-confirmation"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="scheduler-sent-confirmation"]', { timeout: 30_000 });
   }
 
   async getBookedInterviews(): Promise<Interview[]> {
     const page = await this.getPage();
     await page.goto('https://employers.indeed.com/interviews/upcoming');
-    await page.waitForSelector('[data-testid="interview-list"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="interview-list"]', { timeout: 30_000 });
 
     const items = await page.$$('[data-testid="interview-list-item"]');
     const interviews: Interview[] = [];
