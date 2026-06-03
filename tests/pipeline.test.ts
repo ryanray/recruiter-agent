@@ -4,8 +4,7 @@ import { FakeIndeedAdapter } from '../src/fakes/indeed.fake.js';
 import { FakeSheetsAdapter } from '../src/fakes/sheets.fake.js';
 import { FakeDriveAdapter } from '../src/fakes/drive.fake.js';
 import { FakeSlackAdapter } from '../src/fakes/slack.fake.js';
-import type { Applicant, Config, ScreeningResult } from '../src/types.js';
-import type { CandidateRow } from '../src/types.js';
+import type { Applicant, Config, ScreeningResult, CandidateRow } from '../src/types.js';
 
 const config: Config = {
   run: { trigger: 'manual', max_candidates_per_run: null },

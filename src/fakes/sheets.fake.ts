@@ -38,7 +38,7 @@ export class FakeSheetsAdapter implements SheetsAdapter {
   }
 
   async getCandidatesForAction(): Promise<CandidateRow[]> {
-    return this.tabs['Active'].filter(c => c.humanDecision?.trim() !== '');
+    return this.tabs['Active'].filter(c => !!c.humanDecision?.trim());
   }
 
   async moveCandidate(name: string, fromTab: string, toTab: string): Promise<void> {
