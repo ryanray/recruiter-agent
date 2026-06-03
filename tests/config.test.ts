@@ -18,8 +18,7 @@ screening:
 scheduling:
   cold_candidate_days: 3
 messages:
-  intro: "Hi {name}, thanks!"
-  rejection: "Hi {name}, no thanks."
+  interview_request: "Hi {FIRST_NAME}, thanks!"
 google_drive:
   recruiting_root_folder_id: "root-id"
   checkback_folder_id: "checkback-id"
