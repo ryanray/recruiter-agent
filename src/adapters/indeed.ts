@@ -203,6 +203,21 @@ export class IndeedService implements IndeedAdapter {
     await page.waitForSelector('[data-testid="interviewList"]', { timeout: 30_000 });
     await jitter(600, 1200);
 
+    const accountFilterText = await page.$eval(
+      '[aria-label="Account filter"]',
+      el => el.textContent?.trim() ?? ''
+    );
+    if (!accountFilterText.includes('Your account')) {
+      console.log('[Indeed] Filtering to "Your account"...');
+      await page.click('[aria-label="Account filter"]');
+      await jitter(300, 600);
+      await page.getByRole('option', { name: 'Your account' }).click();
+      await page.waitForSelector('[data-testid="interviewList"]', { timeout: 15_000 });
+      await jitter(600, 1200);
+    } else {
+      console.log('[Indeed] Account filter already set to "Your account".');
+    }
+
     const interviews: Interview[] = [];
 
     while (true) {
