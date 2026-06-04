@@ -165,9 +165,17 @@ export class IndeedService implements IndeedAdapter {
     await page.type('[data-testid="gt-interview-form-message-to-candidate-text-area"]', options.message, { delay: 10 + Math.random() * 15, timeout: 120_000 });
     await jitter(400, 900);
 
-    console.log('[Indeed] Enabling hiring team switch...');
-    await page.click('[data-testid="gt-interview-details-hiring-team-switch"]');
-    await jitter(400, 800);
+    const switchChecked = await page.$eval(
+      '[data-testid="gt-interview-details-hiring-team-switch"]',
+      el => el.getAttribute('aria-checked') === 'true' || (el as HTMLInputElement).checked
+    );
+    if (!switchChecked) {
+      console.log('[Indeed] Enabling hiring team switch...');
+      await page.click('[data-testid="gt-interview-details-hiring-team-switch"]');
+      await jitter(400, 800);
+    } else {
+      console.log('[Indeed] Hiring team switch already enabled, skipping.');
+    }
 
     if (options.hiringTeamEmails.length > 0) {
       console.log('[Indeed] Filling hiring team emails...');
