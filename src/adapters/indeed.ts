@@ -151,11 +151,11 @@ export class IndeedService implements IndeedAdapter {
     console.log('[Indeed] Setting duration...');
     await page.click('[data-testid="InterviewTimesSelector-duration"]');
     await jitter(300, 600);
-    await page.click('[data-testid="InterviewTimesSelector-duration-30"]');
+    await page.click('[data-testid="InterviewTimesSelector-duration-15"]');
     await jitter(400, 800);
 
     console.log('[Indeed] Setting format to phone...');
-    await page.click('[data-testid="gt-interview-details-interview-type"]', { force: true });
+    await page.locator('[data-testid="gt-interview-details-interview-type"] input').click({ force: true });
     await jitter(400, 800);
 
     console.log('[Indeed] Filling message...');
