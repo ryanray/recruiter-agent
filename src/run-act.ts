@@ -29,6 +29,7 @@ const timeout = setTimeout(() => {
 
 try {
   await agent.processPendingDecisions();
+  await agent.processBookedInterviews();
   clearTimeout(timeout);
   console.log('\n[Act] Complete.');
 } catch (err) {
