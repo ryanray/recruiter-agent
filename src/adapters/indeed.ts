@@ -218,7 +218,7 @@ export class IndeedService implements IndeedAdapter {
           '[data-testid="CandidateDetails-viewCandidateLink"]',
           el => el.getAttribute('href') ?? ''
         );
-        const applicantId = href.match(/[?&]id=([a-z0-9]+)/)?.[1] ?? '';
+        const applicantId = href.match(/[?&]id=([a-z0-9-]+)/)?.[1] ?? '';
 
         const applicantName = await card.$eval(
           '[data-testid="interview-card-candidate"]',
