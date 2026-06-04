@@ -155,7 +155,7 @@ export class IndeedService implements IndeedAdapter {
     await jitter(400, 800);
 
     console.log('[Indeed] Setting format to phone...');
-    await page.locator('[data-testid="gt-interview-details-interview-type"] input').click({ force: true });
+    await page.getByRole('radio', { name: 'Phone' }).click({ force: true });
     await jitter(400, 800);
 
     console.log('[Indeed] Filling message...');
