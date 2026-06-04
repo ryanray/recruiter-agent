@@ -234,6 +234,33 @@ export class Agent {
     }
   }
 
+  async processBookedInterviews(): Promise<void> {
+    console.log('\n[Agent] Checking for booked interviews...');
+    const interviews = await this.indeed.getBookedInterviews();
+    console.log(`[Agent] ${interviews.length} booked interview(s) found on Indeed.`);
+
+    const activeCandidates = await this.sheets.getActiveCandidates();
+    const byIndeedId = new Map(activeCandidates.map(c => [c.indeedId, c]));
+
+    for (const interview of interviews) {
+      const candidate = byIndeedId.get(interview.applicantId);
+      if (!candidate) {
+        console.log(`[Agent] No matching candidate for applicantId=${interview.applicantId} — skipping.`);
+        continue;
+      }
+      if (candidate.status === 'Interview Scheduled') {
+        console.log(`[Agent] ${candidate.name} already at Interview Scheduled — skipping.`);
+        continue;
+      }
+      console.log(`[Agent] Interview booked: ${candidate.name} — ${interview.scheduledAt}`);
+      await this.sheets.updateCandidateStatus(candidate.name, 'Interview Scheduled', { lastContact: today() });
+      await this.slack.post(
+        this.config.slack.recruiting_channel,
+        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}`
+      );
+    }
+  }
+
   async run(
     since: Date,
     processedIds: Set<string> = new Set(),

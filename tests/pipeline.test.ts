@@ -291,6 +291,88 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(sheets.tabs['Active'][0].humanDecision).toBe('');
     });
   });
+
+  describe('Agent.processBookedInterviews', () => {
+    let indeed: FakeIndeedAdapter;
+    let sheets: FakeSheetsAdapter;
+    let drive: FakeDriveAdapter;
+    let slack: FakeSlackAdapter;
+    let agent: Agent;
+
+    beforeEach(() => {
+      indeed = new FakeIndeedAdapter();
+      sheets = new FakeSheetsAdapter();
+      drive = new FakeDriveAdapter();
+      slack = new FakeSlackAdapter();
+      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+    });
+
+    it('updates status, lastContact, and posts Slack when interview is booked', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', name: 'Jane Doe', status: 'Screened - Invite Sent',
+      }));
+      indeed.seedInterviews([{
+        applicantId: 'app-1',
+        applicantName: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+      }]);
+
+      await agent.processBookedInterviews();
+
+      expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
+      expect(sheets.tabs['Active'][0].lastContact).toBeTruthy();
+      expect(slack.messages).toHaveLength(1);
+      expect(slack.messages[0].message).toContain('Jane Doe');
+      expect(slack.messages[0].message).toContain('Thursday, June 5, 2026');
+    });
+
+    it('skips candidate already at Interview Scheduled', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', name: 'Jane Doe', status: 'Interview Scheduled',
+      }));
+      indeed.seedInterviews([{
+        applicantId: 'app-1',
+        applicantName: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+      }]);
+
+      await agent.processBookedInterviews();
+
+      expect(slack.messages).toHaveLength(0);
+      expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
+    });
+
+    it('skips interview with no matching candidate in Active', async () => {
+      indeed.seedInterviews([{
+        applicantId: 'unknown-id',
+        applicantName: 'Unknown Person',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+      }]);
+
+      await agent.processBookedInterviews();
+
+      expect(slack.messages).toHaveLength(0);
+    });
+
+    it('processes multiple booked interviews', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', name: 'Jane Doe', status: 'Screened - Invite Sent',
+      }));
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-2', name: 'John Smith', status: 'Screened - Invite Sent',
+      }));
+      indeed.seedInterviews([
+        { applicantId: 'app-1', applicantName: 'Jane Doe', scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)' },
+        { applicantId: 'app-2', applicantName: 'John Smith', scheduledAt: 'Friday, June 6, 2026 from 2:00 to 2:15 pm (MDT)' },
+      ]);
+
+      await agent.processBookedInterviews();
+
+      expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
+      expect(sheets.tabs['Active'][1].status).toBe('Interview Scheduled');
+      expect(slack.messages).toHaveLength(2);
+    });
+  });
 });
 
 describe('FakeSheetsAdapter new methods', () => {
