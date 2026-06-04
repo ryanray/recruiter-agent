@@ -197,25 +197,60 @@ export class IndeedService implements IndeedAdapter {
 
   async getBookedInterviews(): Promise<Interview[]> {
     const page = await this.getPage();
+    console.log('[Indeed] Fetching booked interviews...');
+    await jitter(500, 1000);
     await page.goto('https://employers.indeed.com/interviews/upcoming');
-    await page.waitForSelector('[data-testid="interview-list"]', { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="interviewList"]', { timeout: 30_000 });
+    await jitter(600, 1200);
 
-    const items = await page.$$('[data-testid="interview-list-item"]');
     const interviews: Interview[] = [];
 
-    for (const item of items) {
-      const name = await item.$eval('[data-testid="candidate-name"]', el => el.textContent?.trim() ?? '');
-      const id = await item.getAttribute('data-applicant-id') ?? '';
-      const interviewId = await item.getAttribute('data-interview-id') ?? '';
-      const timeText = await item.$eval('[data-testid="interview-time"]', el => el.textContent ?? '');
-      interviews.push({
-        applicantId: id,
-        applicantName: name,
-        scheduledAt: new Date(timeText),
-        indeedInterviewId: interviewId,
-      });
+    while (true) {
+      const cards = await page.$$('[data-testid="InterviewCard-Wrapper"]');
+      console.log(`[Indeed] Processing ${cards.length} interview card(s) on this page...`);
+
+      for (const card of cards) {
+        await card.$eval('[data-testid="interview-card-candidate"]', el => (el as HTMLElement).click());
+        await page.waitForSelector('[data-testid="CandidateDetails-viewCandidateLink"]', { timeout: 15_000 });
+        await jitter(400, 800);
+
+        const href = await page.$eval(
+          '[data-testid="CandidateDetails-viewCandidateLink"]',
+          el => el.getAttribute('href') ?? ''
+        );
+        const applicantId = href.match(/[?&]id=([a-z0-9]+)/)?.[1] ?? '';
+
+        const applicantName = await card.$eval(
+          '[data-testid="interview-card-candidate"]',
+          el => el.textContent?.trim() ?? ''
+        );
+
+        const scheduledAt = await page.$eval(
+          '[data-testid="interviewDetails-datetime"]',
+          el => el.textContent?.trim() ?? ''
+        );
+
+        if (applicantId) {
+          interviews.push({ applicantId, applicantName, scheduledAt });
+          console.log(`[Indeed] Interview found: ${applicantName} (${applicantId}) — ${scheduledAt}`);
+        } else {
+          console.log(`[Indeed] Could not extract applicantId from href "${href}" — skipping card.`);
+        }
+
+        await jitter(300, 700);
+      }
+
+      const paginationButtons = await page.$$('[data-testid="interviewList-ListPagination"] button');
+      const nextButton = paginationButtons[1];
+      if (!nextButton || await nextButton.isDisabled()) break;
+
+      console.log('[Indeed] Moving to next page of interviews...');
+      await nextButton.click();
+      await page.waitForSelector('[data-testid="interviewList"]', { timeout: 15_000 });
+      await jitter(600, 1200);
     }
 
+    console.log(`[Indeed] ${interviews.length} booked interview(s) found total.`);
     return interviews;
   }
 
