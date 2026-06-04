@@ -16,8 +16,7 @@ export interface Applicant {
 export interface Interview {
   applicantId: string;
   applicantName: string;
-  scheduledAt: Date;
-  indeedInterviewId: string;
+  scheduledAt: string;
 }
 
 export type CandidateStatus =
