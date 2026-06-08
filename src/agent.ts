@@ -256,7 +256,7 @@ export class Agent {
       await this.sheets.updateCandidateStatus(candidate.name, 'Interview Scheduled', { lastContact: today() });
       await this.slack.post(
         this.config.slack.recruiting_channel,
-        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}`
+        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}\n${candidate.indeedUrl}\n${candidate.driveFolder ?? ''}`
       );
     }
   }
