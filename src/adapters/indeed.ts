@@ -48,43 +48,59 @@ export class IndeedService implements IndeedAdapter {
     await jitter(800, 1800);
 
     const applicants: Applicant[] = [];
-    const items = await page.$$('[data-testid="table-row"]');
-    console.log(`[Indeed] Found ${items.length} row(s) on the page.`);
 
-    for (const item of items) {
-      // Skip candidates already marked (shortlisted, undecided, or no interest)
-      const alreadyMarked = await item.$('[data-testid^="ApplicantSentiment-"][data-is-selected="true"]') !== null;
-      if (alreadyMarked) {
-        const skippedName = ((await item.$eval('[data-testid="NameCell"]', el => el.textContent).catch(() => '')) ?? '').trim();
-        console.log(`[Indeed] Skipping already-marked candidate: ${skippedName}`);
-        continue;
-      }
-
-      const nameEl = await item.$('[data-testid="NameCell"]');
-      const name = ((await nameEl?.textContent()) ?? '').trim();
-      const href = (await nameEl?.getAttribute('href')) ?? '';
-      const idMatch = href.match(/[?&]id=([a-z0-9]+)/);
-      const id = idMatch?.[1] ?? '';
-      if (!id || !name) {
-        console.log('[Indeed] Skipping row — could not extract name or ID.');
-        continue;
-      }
-
-      const profileUrl = `https://employers.indeed.com${href}`;
-      const location = await item.$eval(
-        '[data-testid="CandidateInfoColumn-location"]',
+    while (true) {
+      const counter = await page.$eval(
+        '[data-testid="pagination-candidate-counter"]',
         el => el.textContent?.trim() ?? ''
       ).catch(() => '');
+      const items = await page.$$('[data-testid="table-row"]');
+      console.log(`[Indeed] ${counter} — processing ${items.length} row(s).`);
 
-      console.log(`[Indeed] Found candidate: ${name} (${location || 'no location'}) id=${id}`);
-      const [firstName, ...rest] = name.split(' ');
-      applicants.push({
-        id, name,
-        firstName: firstName ?? name,
-        lastName: rest.join(' '),
-        location,
-        indeedProfileUrl: profileUrl,
-      });
+      for (const item of items) {
+        // Skip candidates already marked (shortlisted, undecided, or no interest)
+        const alreadyMarked = await item.$('[data-testid^="ApplicantSentiment-"][data-is-selected="true"]') !== null;
+        if (alreadyMarked) {
+          const skippedName = ((await item.$eval('[data-testid="NameCell"]', el => el.textContent).catch(() => '')) ?? '').trim();
+          console.log(`[Indeed] Skipping already-marked candidate: ${skippedName}`);
+          continue;
+        }
+
+        const nameEl = await item.$('[data-testid="NameCell"]');
+        const name = ((await nameEl?.textContent()) ?? '').trim();
+        const href = (await nameEl?.getAttribute('href')) ?? '';
+        const idMatch = href.match(/[?&]id=([a-z0-9]+)/);
+        const id = idMatch?.[1] ?? '';
+        if (!id || !name) {
+          console.log('[Indeed] Skipping row — could not extract name or ID.');
+          continue;
+        }
+
+        const profileUrl = `https://employers.indeed.com${href}`;
+        const location = await item.$eval(
+          '[data-testid="CandidateInfoColumn-location"]',
+          el => el.textContent?.trim() ?? ''
+        ).catch(() => '');
+
+        console.log(`[Indeed] Found candidate: ${name} (${location || 'no location'}) id=${id}`);
+        const [firstName, ...rest] = name.split(' ');
+        applicants.push({
+          id, name,
+          firstName: firstName ?? name,
+          lastName: rest.join(' '),
+          location,
+          indeedProfileUrl: profileUrl,
+        });
+      }
+
+      const navButtons = await page.$$('nav[aria-label="pagination"] button');
+      const nextButton = navButtons[navButtons.length - 1];
+      if (!nextButton || await nextButton.isDisabled()) break;
+
+      console.log('[Indeed] Moving to next page of candidates...');
+      await nextButton.click();
+      await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
+      await jitter(800, 1800);
     }
 
     console.log(`[Indeed] ${applicants.length} unprocessed candidate(s) to screen.`);
