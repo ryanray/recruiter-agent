@@ -17,6 +17,7 @@ screening:
   disqualifying: []
 scheduling:
   cold_candidate_days: 3
+  previously_contacted_lookback_days: 365
 messages:
   interview_request: "Hi {FIRST_NAME}, thanks!"
 google_drive:

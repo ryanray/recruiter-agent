@@ -14,6 +14,7 @@ const REQUIRED_FIELDS: [string, string][] = [
   ['run', 'trigger'],
   ['screening', 'required'],
   ['scheduling', 'cold_candidate_days'],
+  ['scheduling', 'previously_contacted_lookback_days'],
   ['messages', 'interview_request'],
   ['google_drive', 'recruiting_root_folder_id'],
   ['google_drive', 'checkback_folder_id'],

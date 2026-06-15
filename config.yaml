@@ -1,6 +1,6 @@
 run:
   trigger: manual
-  max_candidates_per_run: 1
+  max_candidates_per_run: 20
 
 screening:
   required:
@@ -15,10 +15,11 @@ screening:
 
 scheduling:
   cold_candidate_days: 3
+  previously_contacted_lookback_days: 365
   hiring_team_emails: ["rray@firstlighthomecare.com", "jray@firstlighthomecare.com", "ashumway@firstlighthomecare.com"]  # Add team member emails to include on phone screen invites
 
 messages:
-  interview_request: "Hi {FIRST_NAME}, thank you for applying to FirstLight Home Care of South Jordan! We'd love to set up a quick phone call so that we can tell you more about us and the position as well as learn more about your background. Please use the link below to schedule a time that works for you."
+  interview_request: "Hi {FIRST_NAME}, thank you for applying to FirstLight Home Care of South Jordan! I am impressed with your background and would love to set up a quick phone call so that we can tell you more about us and the position as well as learn more about your background. Please use the link below to schedule a time that works for you."
 
 google_drive:
   recruiting_root_folder_id: "1jYcRwUmAdjKs17ajEto4weKbkicP4CX3"
