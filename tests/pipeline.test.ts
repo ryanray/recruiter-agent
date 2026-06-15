@@ -13,7 +13,7 @@ const config: Config = {
     preferred: ['cna_certification'],
     disqualifying: [],
   },
-  scheduling: { cold_candidate_days: 3, hiring_team_emails: [] },
+  scheduling: { cold_candidate_days: 3, hiring_team_emails: [], previously_contacted_lookback_days: 365 },
   messages: {
     interview_request: 'Hi {FIRST_NAME}, thanks for applying!',
   },

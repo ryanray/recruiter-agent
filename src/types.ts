@@ -19,6 +19,13 @@ export interface Interview {
   scheduledAt: string;
 }
 
+export interface PreviouslyContactedEntry {
+  name: string;
+  lastContact: string; // YYYY-MM-DD
+  notes: string;
+  indeedId: string; // empty string for seeded rows
+}
+
 export type CandidateStatus =
   | 'Awaiting Review'
   | 'Screened - Invite Sent'
@@ -132,6 +139,8 @@ export interface SheetsAdapter {
   getEvaluatedCandidateIds(): Promise<Set<string>>;
   getCandidatesForAction(): Promise<CandidateRow[]>;
   moveCandidate(name: string, fromTab: string, toTab: string): Promise<void>;
+  getPreviouslyContactedNames(lookbackDays?: number): Promise<{ name: string; lastContact: string }[]>;
+  addToPreviouslyContacted(entry: PreviouslyContactedEntry): Promise<void>;
 }
 
 export interface DriveAdapter {
@@ -139,6 +148,7 @@ export interface DriveAdapter {
   moveFolder(folderId: string, targetParentId: string): Promise<void>;
   uploadFile(folderId: string, name: string, content: Buffer, mimeType: string): Promise<void>;
   copyTemplate(templateId: string, destFolderId: string, name: string): Promise<void>;
+  listSubfolders(parentId: string): Promise<{ id: string; name: string }[]>;
 }
 
 export interface SlackAdapter {
@@ -162,6 +172,7 @@ export interface Config {
   scheduling: {
     cold_candidate_days: number;
     hiring_team_emails: string[];
+    previously_contacted_lookback_days: number;
   };
   messages: {
     interview_request: string;
