@@ -5,6 +5,7 @@ export class FakeDriveAdapter implements DriveAdapter {
   files: { folderId: string; name: string; content: Buffer; mimeType: string }[] = [];
   copies: { templateId: string; destFolderId: string; name: string }[] = [];
   moves: { folderId: string; targetParentId: string }[] = [];
+  seededSubfolders: { parentId: string; id: string; name: string }[] = [];
   private nextId = 1;
 
   async createFolder(name: string, parentId: string): Promise<string> {
@@ -23,5 +24,11 @@ export class FakeDriveAdapter implements DriveAdapter {
 
   async copyTemplate(templateId: string, destFolderId: string, name: string): Promise<void> {
     this.copies.push({ templateId, destFolderId, name });
+  }
+
+  async listSubfolders(parentId: string): Promise<{ id: string; name: string }[]> {
+    return this.seededSubfolders
+      .filter(f => f.parentId === parentId)
+      .map(f => ({ id: f.id, name: f.name }));
   }
 }

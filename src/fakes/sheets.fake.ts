@@ -1,10 +1,11 @@
-import type { SheetsAdapter, CandidateRow, CandidateStatus } from '../types.js';
+import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry } from '../types.js';
 
 export class FakeSheetsAdapter implements SheetsAdapter {
   tabs: Record<string, CandidateRow[]> = {
     Active: [], Rejected: [], Hired: [],
     'Checkback Later': [], 'Communication Log': [],
   };
+  previouslyContacted: PreviouslyContactedEntry[] = [];
 
   async addCandidate(tab: string, candidate: CandidateRow): Promise<void> {
     if (!this.tabs[tab]) this.tabs[tab] = [];
@@ -47,5 +48,18 @@ export class FakeSheetsAdapter implements SheetsAdapter {
     const [row] = this.tabs[fromTab].splice(idx, 1);
     if (!this.tabs[toTab]) this.tabs[toTab] = [];
     this.tabs[toTab].push(row);
+  }
+
+  async getPreviouslyContactedNames(lookbackDays?: number): Promise<{ name: string; lastContact: string }[]> {
+    const cutoff = lookbackDays !== undefined
+      ? new Date(Date.now() - lookbackDays * 86_400_000).toISOString().slice(0, 10)
+      : undefined;
+    return this.previouslyContacted
+      .filter(e => !cutoff || e.lastContact >= cutoff)
+      .map(e => ({ name: e.name, lastContact: e.lastContact }));
+  }
+
+  async addToPreviouslyContacted(entry: PreviouslyContactedEntry): Promise<void> {
+    this.previouslyContacted.push({ ...entry });
   }
 }
