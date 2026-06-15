@@ -204,6 +204,14 @@ export class Agent {
             candidate.name, 'Screened - Invite Sent', { lastContact: today() }
           );
 
+          console.log(`[Agent] Recording ${candidate.name} in Previously Contacted tab (approved).`);
+          await this.sheets.addToPreviouslyContacted({
+            name: candidate.name,
+            lastContact: today(),
+            notes: 'Approved - interview sent',
+            indeedId: candidate.indeedId,
+          });
+
         } else if (decision === 'reject') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
@@ -218,6 +226,14 @@ export class Agent {
 
           console.log(`[Agent] Moving row to Rejected tab...`);
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Rejected');
+
+          console.log(`[Agent] Recording ${candidate.name} in Previously Contacted tab (rejected).`);
+          await this.sheets.addToPreviouslyContacted({
+            name: candidate.name,
+            lastContact: today(),
+            notes: 'Rejected',
+            indeedId: candidate.indeedId,
+          });
 
         } else if (decision === 'checkback later') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);

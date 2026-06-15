@@ -440,6 +440,62 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(slack.messages.find(m => m.message.includes('Previously contacted'))).toBeDefined();
     });
   });
+
+  describe('Agent.processPendingDecisions — previously contacted write-back', () => {
+    let indeed: FakeIndeedAdapter;
+    let sheets: FakeSheetsAdapter;
+    let drive: FakeDriveAdapter;
+    let slack: FakeSlackAdapter;
+    let agent: Agent;
+
+    beforeEach(() => {
+      indeed = new FakeIndeedAdapter();
+      sheets = new FakeSheetsAdapter();
+      drive = new FakeDriveAdapter();
+      slack = new FakeSlackAdapter();
+      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'awaiting-id' });
+    });
+
+    it('approve writes candidate to Previously Contacted tab', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Approve',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(sheets.previouslyContacted).toHaveLength(1);
+      expect(sheets.previouslyContacted[0].name).toBe('Jane Doe');
+      expect(sheets.previouslyContacted[0].notes).toBe('Approved - interview sent');
+      expect(sheets.previouslyContacted[0].indeedId).toBe('app-1');
+      expect(sheets.previouslyContacted[0].lastContact).toBeTruthy();
+    });
+
+    it('reject writes candidate to Previously Contacted tab', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Reject',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(sheets.previouslyContacted).toHaveLength(1);
+      expect(sheets.previouslyContacted[0].name).toBe('Jane Doe');
+      expect(sheets.previouslyContacted[0].notes).toBe('Rejected');
+    });
+
+    it('checkback later does not write to Previously Contacted', async () => {
+      sheets.tabs['Active'].push(makeCandidate({
+        indeedId: 'app-1', humanDecision: 'Checkback Later',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }));
+
+      await agent.processPendingDecisions();
+
+      expect(sheets.previouslyContacted).toHaveLength(0);
+    });
+  });
 });
 
 describe('FakeSheetsAdapter new methods', () => {
