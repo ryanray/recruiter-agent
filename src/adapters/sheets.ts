@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../google-auth.js';
-import type { SheetsAdapter, CandidateRow, CandidateStatus } from '../types.js';
+import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry } from '../types.js';
 
 const COLUMNS = [
   'name','phone','email','indeedUrl','indeedId','location',
@@ -8,7 +8,6 @@ const COLUMNS = [
   'lastContact','driveFolder','humanDecision','notes',
 ] as const;
 
-const PC_COLUMNS = ['name', 'lastContact', 'notes', 'indeedId'] as const;
 
 type ColName = typeof COLUMNS[number];
 
@@ -172,7 +171,7 @@ export class SheetsService implements SheetsAdapter {
     return result;
   }
 
-  async addToPreviouslyContacted(entry: import('../types.js').PreviouslyContactedEntry): Promise<void> {
+  async addToPreviouslyContacted(entry: PreviouslyContactedEntry): Promise<void> {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
     console.log(`[Sheets] Adding ${entry.name} to Previously Contacted tab...`);
     await sheets.spreadsheets.values.append({
