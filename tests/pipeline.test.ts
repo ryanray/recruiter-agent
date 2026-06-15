@@ -373,6 +373,73 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(slack.messages).toHaveLength(2);
     });
   });
+
+  describe('Agent.evaluateCandidates — previously contacted guard', () => {
+    let indeed: FakeIndeedAdapter;
+    let sheets: FakeSheetsAdapter;
+    let drive: FakeDriveAdapter;
+    let slack: FakeSlackAdapter;
+    const since = new Date('2026-01-01');
+
+    beforeEach(() => {
+      indeed = new FakeIndeedAdapter();
+      sheets = new FakeSheetsAdapter();
+      drive = new FakeDriveAdapter();
+      slack = new FakeSlackAdapter();
+    });
+
+    it('flags applicant with prior contact within window: notes prefixed + Slack alert', async () => {
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+      sheets.previouslyContacted.push({
+        name: 'Jane Doe', lastContact: yesterday, notes: 'Rejected', indeedId: 'old-id',
+      });
+      indeed.seedApplicants([makeApplicant()]);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+
+      await agent.evaluateCandidates(since, new Set(), () => {});
+
+      const priorAlert = slack.messages.find(m => m.message.includes('Previously contacted'));
+      expect(priorAlert).toBeDefined();
+      expect(priorAlert!.message).toContain('Jane Doe');
+      expect(sheets.tabs['Active'][0].notes).toMatch(/^\[Previously contacted:/);
+    });
+
+    it('does not flag applicant with prior contact outside window', async () => {
+      sheets.previouslyContacted.push({
+        name: 'Jane Doe', lastContact: '2020-01-01', notes: 'Rejected', indeedId: 'old-id',
+      });
+      indeed.seedApplicants([makeApplicant()]);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+
+      await agent.evaluateCandidates(since, new Set(), () => {});
+
+      expect(slack.messages.filter(m => m.message.includes('Previously contacted'))).toHaveLength(0);
+      expect(sheets.tabs['Active'][0].notes).not.toContain('[Previously contacted:');
+    });
+
+    it('processes normally when no prior contact record exists', async () => {
+      indeed.seedApplicants([makeApplicant()]);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+
+      await agent.evaluateCandidates(since, new Set(), () => {});
+
+      expect(slack.messages.filter(m => m.message.includes('Previously contacted'))).toHaveLength(0);
+      expect(sheets.tabs['Active'][0].notes).not.toContain('[Previously contacted:');
+    });
+
+    it('matches case-insensitively: lowercase name in tab matches mixed-case applicant', async () => {
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+      sheets.previouslyContacted.push({
+        name: 'jane doe', lastContact: yesterday, notes: 'Rejected', indeedId: 'old-id',
+      });
+      indeed.seedApplicants([makeApplicant({ name: 'Jane Doe' })]);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+
+      await agent.evaluateCandidates(since, new Set(), () => {});
+
+      expect(slack.messages.find(m => m.message.includes('Previously contacted'))).toBeDefined();
+    });
+  });
 });
 
 describe('FakeSheetsAdapter new methods', () => {

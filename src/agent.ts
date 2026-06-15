@@ -43,6 +43,15 @@ export class Agent {
     if (limit) applicants = applicants.slice(0, limit);
     result.newApplicantsReviewed = applicants.length;
 
+    console.log(`[Agent] Loading previously contacted candidates (lookback: ${this.config.scheduling.previously_contacted_lookback_days} days)...`);
+    const previouslyContactedEntries = await this.sheets.getPreviouslyContactedNames(
+      this.config.scheduling.previously_contacted_lookback_days
+    );
+    const priorContactMap = new Map(
+      previouslyContactedEntries.map(e => [e.name.toLowerCase(), e.lastContact])
+    );
+    console.log(`[Agent] ${priorContactMap.size} previously contacted candidate(s) in window.`);
+
     for (const applicant of applicants) {
       console.log(`\n[Agent] Processing: ${applicant.name} (${applicant.location ?? 'no location'})`);
       try {
@@ -52,6 +61,15 @@ export class Agent {
           console.log(`[Agent] Profile text fetched (${applicant.resumeText.length} chars).`);
         } catch (profileErr) {
           console.log(`[Agent] Could not fetch profile text: ${profileErr instanceof Error ? profileErr.message : profileErr}`);
+        }
+
+        const priorContact = priorContactMap.get(applicant.name.toLowerCase());
+        if (priorContact) {
+          console.log(`[Agent] ${applicant.name} was previously contacted on ${priorContact} — flagging for human review.`);
+          await this.slack.post(
+            this.config.slack.recruiting_channel,
+            `⚠️ *Previously contacted:* ${applicant.name} — last seen ${priorContact}\nReview before acting: ${applicant.indeedProfileUrl}`
+          );
         }
 
         console.log(`[Agent] Screening ${applicant.name} with Claude...`);
@@ -86,7 +104,8 @@ export class Agent {
         row.agentRecommendation = screening.decision;
         row.humanDecision = '';
         row.indeedId = applicant.id;
-        row.notes = screening.reasons.join('; ');
+        const priorNote = priorContact ? `[Previously contacted: ${priorContact}] ` : '';
+        row.notes = `${priorNote}${screening.reasons.join('; ')}`;
 
         console.log(`[Agent] Adding to Active sheet...`);
         await this.sheets.addCandidate('Active', row);
