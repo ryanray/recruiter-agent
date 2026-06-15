@@ -68,6 +68,7 @@ if (process.argv[1]?.endsWith('seed-previously-contacted.ts') || process.argv[1]
     console.error('[Seed] Usage: npm run seed-previously-contacted -- <caregiver-applicants-folder-id>');
     process.exit(1);
   }
+  await import('dotenv/config');
   const { loadConfig } = await import('../config.js');
   const { DriveService } = await import('../adapters/drive.js');
   const { SheetsService } = await import('../adapters/sheets.js');
