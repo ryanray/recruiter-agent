@@ -63,4 +63,52 @@ describe('seedPreviouslyContacted', () => {
     const today = new Date().toISOString().slice(0, 10);
     expect(sheets.previouslyContacted[0].lastContact).toBe(today);
   });
+
+  it('traverses category folders (prefixed with _) one level deep and adds their children', async () => {
+    drive.seededSubfolders.push(
+      { parentId: FOLDER_ID, id: 'cat1', name: '_Checkback Later' },
+      { parentId: 'cat1', id: 'f1', name: 'Smith, Jane - 2025-03-14' },
+      { parentId: 'cat1', id: 'f2', name: 'Brown, Alice - 2025-06-01' },
+    );
+
+    const result = await seedPreviouslyContacted(drive, sheets, FOLDER_ID);
+
+    expect(result.added).toBe(2);
+    expect(result.skipped).toBe(0);
+    const names = sheets.previouslyContacted.map(e => e.name);
+    expect(names).toContain('Smith, Jane - 2025-03-14');
+    expect(names).toContain('Brown, Alice - 2025-06-01');
+    expect(names).not.toContain('_Checkback Later');
+  });
+
+  it('skips nested category folders (__ inside _) with a warning', async () => {
+    drive.seededSubfolders.push(
+      { parentId: FOLDER_ID, id: 'cat1', name: '_Active' },
+      { parentId: 'cat1', id: 'f1', name: 'Johnson, Bob - 2024-11-22' },
+      { parentId: 'cat1', id: 'sub1', name: '_SubCategory' },
+    );
+
+    const result = await seedPreviouslyContacted(drive, sheets, FOLDER_ID);
+
+    expect(result.added).toBe(1);
+    const names = sheets.previouslyContacted.map(e => e.name);
+    expect(names).toContain('Johnson, Bob - 2024-11-22');
+    expect(names).not.toContain('_SubCategory');
+  });
+
+  it('handles mixed top-level folders: direct candidates and category folders', async () => {
+    drive.seededSubfolders.push(
+      { parentId: FOLDER_ID, id: 'f1', name: 'Williams, Carol' },
+      { parentId: FOLDER_ID, id: 'cat2', name: '_Rejected' },
+      { parentId: 'cat2', id: 'f2', name: 'Davis, Tom - 2025-01-15' },
+    );
+
+    const result = await seedPreviouslyContacted(drive, sheets, FOLDER_ID);
+
+    expect(result.added).toBe(2);
+    const names = sheets.previouslyContacted.map(e => e.name);
+    expect(names).toContain('Williams, Carol');
+    expect(names).toContain('Davis, Tom - 2025-01-15');
+    expect(names).not.toContain('_Rejected');
+  });
 });

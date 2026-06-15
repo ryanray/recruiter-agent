@@ -11,14 +11,31 @@ export async function seedPreviouslyContacted(
   console.log(`[Seed] ${existingNames.size} existing entries found — will skip duplicates.`);
 
   console.log(`[Seed] Listing subfolders of ${folderId}...`);
-  const subfolders = await drive.listSubfolders(folderId);
-  console.log(`[Seed] ${subfolders.length} subfolder(s) found.`);
+  const topLevel = await drive.listSubfolders(folderId);
+  console.log(`[Seed] ${topLevel.length} subfolder(s) found.`);
+
+  const candidates: { id: string; name: string }[] = [];
+  for (const folder of topLevel) {
+    if (folder.name.startsWith('_')) {
+      console.log(`[Seed] "${folder.name}" is a category folder — traversing one level...`);
+      const children = await drive.listSubfolders(folder.id);
+      for (const child of children) {
+        if (child.name.startsWith('_')) {
+          console.warn(`[Seed] WARNING: Found nested category folder "${child.name}" inside "${folder.name}" — more than 1 sublevel detected, skipping.`);
+        } else {
+          candidates.push(child);
+        }
+      }
+    } else {
+      candidates.push(folder);
+    }
+  }
 
   let added = 0;
   let skipped = 0;
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  for (const folder of subfolders) {
+  for (const folder of candidates) {
     const name = folder.name.trim();
     if (existingNames.has(name.toLowerCase())) {
       console.log(`[Seed] Skipping "${name}" — already in tab.`);
