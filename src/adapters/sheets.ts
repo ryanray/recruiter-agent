@@ -8,6 +8,8 @@ const COLUMNS = [
   'lastContact','driveFolder','humanDecision','notes',
 ] as const;
 
+const PC_COLUMNS = ['name', 'lastContact', 'notes', 'indeedId'] as const;
+
 type ColName = typeof COLUMNS[number];
 
 export class SheetsService implements SheetsAdapter {
@@ -141,6 +143,43 @@ export class SheetsService implements SheetsAdapter {
           },
         }],
       },
+    });
+  }
+
+  async getPreviouslyContactedNames(lookbackDays?: number): Promise<{ name: string; lastContact: string }[]> {
+    const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
+    if (lookbackDays !== undefined) {
+      console.log(`[Sheets] Getting previously contacted names (lookback: ${lookbackDays} days)...`);
+    } else {
+      console.log('[Sheets] Getting all previously contacted names...');
+    }
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: this.spreadsheetId,
+      range: 'Previously Contacted!A2:D',
+    });
+    const rows = response.data.values ?? [];
+    const cutoff = lookbackDays !== undefined
+      ? new Date(Date.now() - lookbackDays * 86_400_000).toISOString().slice(0, 10)
+      : undefined;
+    const result = rows
+      .map(row => ({
+        name: ((row[0] as string) ?? '').trim(),
+        lastContact: ((row[1] as string) ?? '').trim(),
+      }))
+      .filter(e => e.name && /^\d{4}-\d{2}-\d{2}$/.test(e.lastContact))
+      .filter(e => cutoff === undefined || e.lastContact >= cutoff);
+    console.log(`[Sheets] ${result.length} previously contacted entries returned.`);
+    return result;
+  }
+
+  async addToPreviouslyContacted(entry: import('../types.js').PreviouslyContactedEntry): Promise<void> {
+    const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
+    console.log(`[Sheets] Adding ${entry.name} to Previously Contacted tab...`);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: 'Previously Contacted!A:D',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[entry.name, entry.lastContact, entry.notes, entry.indeedId]] },
     });
   }
 }

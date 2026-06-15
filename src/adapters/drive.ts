@@ -52,4 +52,19 @@ export class DriveService implements DriveAdapter {
       fields: 'id',
     });
   }
+
+  async listSubfolders(parentId: string): Promise<{ id: string; name: string }[]> {
+    const drive = google.drive({ version: 'v3', auth: getGoogleAuth() });
+    console.log(`[Drive] Listing subfolders of ${parentId}...`);
+    const response = await drive.files.list({
+      q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id, name)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      pageSize: 1000,
+    });
+    const files = (response.data.files ?? []).map(f => ({ id: f.id!, name: f.name! }));
+    console.log(`[Drive] ${files.length} subfolder(s) found.`);
+    return files;
+  }
 }
