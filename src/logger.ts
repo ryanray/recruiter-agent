@@ -69,6 +69,20 @@ export function formatRunLog(result: RunResult): string {
     lines.push(`  ✗ ${e.description}`, `    Reason: ${e.reason}`, `    Action: ${e.action}`);
   }
 
+  if (result.pdfFailures.length > 0) {
+    lines.push('', `PDF EXTRACTION FAILURES (${result.pdfFailures.length})`);
+    for (const name of result.pdfFailures) {
+      lines.push(`  ✗ ${name} — PDF text could not be extracted (noted in sheet)`);
+    }
+  }
+
+  if (result.scoreFailures.length > 0) {
+    lines.push('', `SCORE FAILURES (${result.scoreFailures.length})`);
+    for (const name of result.scoreFailures) {
+      lines.push(`  ✗ ${name} — scoring failed, fallback score of 0 used`);
+    }
+  }
+
   lines.push(
     '',
     'SCREENING CRITERIA APPLIED',
