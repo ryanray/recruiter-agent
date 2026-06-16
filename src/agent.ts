@@ -328,7 +328,7 @@ export class Agent {
       await this.sheets.updateCandidateStatus(candidate.name, 'Interview Scheduled', { lastContact: today() });
       await this.slack.post(
         this.config.slack.recruiting_channel,
-        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}\n<${candidate.indeedUrl}|Open on Indeed>${candidate.driveFolder ? `  |  <${candidate.driveFolder}|Open on Google Drive>` : ''}`
+        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}${candidate.score ? `  |  Score: ${candidate.score}/100 (${candidate.scoreTier})` : ''}\n<${candidate.indeedUrl}|Open on Indeed>${candidate.driveFolder ? `  |  <${candidate.driveFolder}|Open on Google Drive>` : ''}`
       );
     }
   }
