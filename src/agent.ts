@@ -1,7 +1,8 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Config, RunResult, CandidateRow, CandidateStatus,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus,
 } from './types.js';
+import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
 import { getGitCommitHash } from './logger.js';
 
@@ -12,6 +13,7 @@ export class Agent {
     private drive: DriveAdapter,
     private slack: SlackAdapter,
     private screener: Screener,
+    private scorer: Scorer,
     private config: Config,
   ) {}
 
@@ -26,6 +28,7 @@ export class Agent {
       newApplicantsReviewed: 0, remainingApplicants: 0,
       passed: [], rejected: [], unsure: [],
       bookings: [], coldCandidates: [], errors: [],
+      pdfFailures: [], scoreFailures: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
         required: this.config.screening.required,
@@ -89,6 +92,34 @@ export class Agent {
         const resume = await this.indeed.downloadResume(applicant.id);
         await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
 
+        console.log(`[Agent] Extracting PDF text for ${applicant.name}...`);
+        const pdfText = await extractPdfText(resume);
+        let pdfNote = '';
+        if (!pdfText) {
+          console.log(`[Agent] PDF text extraction failed for ${applicant.name}.`);
+          result.pdfFailures.push(applicant.name);
+          pdfNote = '[PDF text extraction failed] ';
+        } else {
+          console.log(`[Agent] PDF text extracted (${pdfText.length} chars).`);
+        }
+
+        console.log(`[Agent] Scoring ${applicant.name}...`);
+        const profileText = applicant.resumeText ?? '';
+        const combinedText = [
+          profileText ? `--- Indeed Profile ---\n${profileText}` : '',
+          pdfText ? `--- Resume (PDF) ---\n${pdfText}` : '',
+        ].filter(Boolean).join('\n\n');
+        const applicantForScoring = { ...applicant, resumeText: combinedText };
+        let score;
+        try {
+          score = await this.scorer(applicantForScoring, this.config);
+          console.log(`[Agent] Score: ${score.score}/100 — ${score.recommendation} (${score.tier})`);
+        } catch (scoreErr) {
+          console.error(`[Agent] Scoring failed for ${applicant.name}: ${scoreErr instanceof Error ? scoreErr.message : scoreErr}`);
+          result.scoreFailures.push(applicant.name);
+          score = { score: 0, recommendation: 'Pass' as const, tier: 'Tier 4' as const, keyStrengths: '', concerns: '', interviewQuestions: '' };
+        }
+
         console.log(`[Agent] Copying interview template...`);
         await this.drive.copyTemplate(
           this.config.google_drive.interview_template_sheet_id,
@@ -105,7 +136,13 @@ export class Agent {
         row.humanDecision = '';
         row.indeedId = applicant.id;
         const priorNote = priorContact ? `[Previously contacted: ${priorContact}] ` : '';
-        row.notes = `${priorNote}${screening.reasons.join('; ')}`;
+        row.notes = `${priorNote}${pdfNote}${screening.reasons.join('; ')}`;
+        row.score = String(score.score);
+        row.scoreRecommendation = score.recommendation;
+        row.scoreTier = score.tier;
+        row.keyStrengths = score.keyStrengths;
+        row.scoreConcerns = score.concerns;
+        row.interviewQuestions = score.interviewQuestions;
 
         console.log(`[Agent] Adding to Active sheet...`);
         await this.sheets.addCandidate('Active', row);

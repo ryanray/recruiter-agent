@@ -4,7 +4,7 @@ import { FakeIndeedAdapter } from '../src/fakes/indeed.fake.js';
 import { FakeSheetsAdapter } from '../src/fakes/sheets.fake.js';
 import { FakeDriveAdapter } from '../src/fakes/drive.fake.js';
 import { FakeSlackAdapter } from '../src/fakes/slack.fake.js';
-import type { Applicant, Config, ScreeningResult, CandidateRow } from '../src/types.js';
+import type { Applicant, Config, ScreeningResult, CandidateRow, ScoreResult } from '../src/types.js';
 
 const config: Config = {
   run: { trigger: 'manual', max_candidates_per_run: null },
@@ -85,6 +85,17 @@ function unsureResult(field: string): ScreeningResult {
   };
 }
 
+function defaultScore(): ScoreResult {
+  return {
+    score: 75,
+    recommendation: 'Interview',
+    tier: 'Tier 2',
+    keyStrengths: 'Home care experience',
+    concerns: 'No dementia experience mentioned',
+    interviewQuestions: 'Tell me about your experience',
+  };
+}
+
 describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
   let indeed: FakeIndeedAdapter;
   let sheets: FakeSheetsAdapter;
@@ -101,7 +112,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
   it('all evaluated candidates go to Active with Awaiting Review regardless of decision', async () => {
     indeed.seedApplicants([makeApplicant()]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
     await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -115,7 +126,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
   it('FAIL candidate still gets a Drive folder and Active row', async () => {
     indeed.seedApplicants([makeApplicant()]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => failResult('Too far (40mi)'), config);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => failResult('Too far (40mi)'), async () => defaultScore(), config);
 
     await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -128,7 +139,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
   it('UNSURE candidate gets Active row and posts Slack alert', async () => {
     indeed.seedApplicants([makeApplicant()]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => unsureResult('Cannot determine distance'), config);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => unsureResult('Cannot determine distance'), async () => defaultScore(), config);
 
     await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -140,7 +151,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
   it('urgent PASS candidate posts Slack alert and still goes to Awaiting Review', async () => {
     indeed.seedApplicants([makeApplicant()]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(true), config);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(true), async () => defaultScore(), config);
 
     await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -152,7 +163,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
   it('skips candidates whose indeedId is already in Sheets', async () => {
     sheets.tabs['Active'].push(makeCandidate({ indeedId: 'app-1' }));
     indeed.seedApplicants([makeApplicant({ id: 'app-1' })]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
     const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -162,7 +173,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
   it('skips already-processed candidates (from state.json processedIds)', async () => {
     indeed.seedApplicants([makeApplicant({ id: 'already-done' }), makeApplicant({ id: 'new-one' })]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
     const alreadyProcessed = new Set(['already-done']);
 
     const result = await agent.evaluateCandidates(since, alreadyProcessed, () => {});
@@ -178,7 +189,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       makeApplicant({ id: '2', name: 'B B', firstName: 'B', lastName: 'B' }),
       makeApplicant({ id: '3', name: 'C C', firstName: 'C', lastName: 'C' }),
     ]);
-    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), limitedConfig);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), limitedConfig);
 
     const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -196,7 +207,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       callCount++;
       if (callCount === 1) throw new Error('Simulated Claude failure');
       return passResult();
-    }, config);
+    }, async () => defaultScore(), config);
 
     const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -204,6 +215,39 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(result.errors[0].description).toContain('Bad Actor');
     expect(result.passed).toHaveLength(1);
     expect(result.passed[0].name).toBe('Good Person');
+  });
+
+  it('writes score fields to the Active sheet row', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    const scorer = async (): Promise<ScoreResult> => ({
+      score: 82,
+      recommendation: 'Strong Interview',
+      tier: 'Tier 1',
+      keyStrengths: 'CNA with dementia experience',
+      concerns: '',
+      interviewQuestions: 'Describe a difficult client situation',
+    });
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), scorer, config);
+
+    await agent.evaluateCandidates(since, new Set(), () => {});
+
+    const row = sheets.tabs['Active'][0];
+    expect(row.score).toBe('82');
+    expect(row.scoreRecommendation).toBe('Strong Interview');
+    expect(row.scoreTier).toBe('Tier 1');
+    expect(row.keyStrengths).toBe('CNA with dementia experience');
+    expect(row.scoreConcerns).toBe('');
+    expect(row.interviewQuestions).toBe('Describe a difficult client situation');
+  });
+
+  it('adds [PDF text extraction failed] to notes when PDF extraction returns empty', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+    indeed.downloadResume = async () => Buffer.from('');
+
+    await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(sheets.tabs['Active'][0].notes).toContain('[PDF text extraction failed]');
   });
 
   describe('Agent.processPendingDecisions', () => {
@@ -218,7 +262,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       sheets = new FakeSheetsAdapter();
       drive = new FakeDriveAdapter();
       slack = new FakeSlackAdapter();
-      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
       // Pre-seed a folder so moves have something to reference
       drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'awaiting-id' });
     });
@@ -304,7 +348,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       sheets = new FakeSheetsAdapter();
       drive = new FakeDriveAdapter();
       slack = new FakeSlackAdapter();
-      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
     });
 
     it('updates status, lastContact, and posts Slack when interview is booked', async () => {
@@ -394,7 +438,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         name: 'Jane Doe', lastContact: yesterday, notes: 'Rejected', indeedId: 'old-id',
       });
       indeed.seedApplicants([makeApplicant()]);
-      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
       await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -409,7 +453,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         name: 'Jane Doe', lastContact: '2020-01-01', notes: 'Rejected', indeedId: 'old-id',
       });
       indeed.seedApplicants([makeApplicant()]);
-      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
       await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -419,7 +463,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
     it('processes normally when no prior contact record exists', async () => {
       indeed.seedApplicants([makeApplicant()]);
-      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
       await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -433,7 +477,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         name: 'jane doe', lastContact: yesterday, notes: 'Rejected', indeedId: 'old-id',
       });
       indeed.seedApplicants([makeApplicant({ name: 'Jane Doe' })]);
-      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
       await agent.evaluateCandidates(since, new Set(), () => {});
 
@@ -453,7 +497,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       sheets = new FakeSheetsAdapter();
       drive = new FakeDriveAdapter();
       slack = new FakeSlackAdapter();
-      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), config);
+      agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
       drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'awaiting-id' });
     });
 
