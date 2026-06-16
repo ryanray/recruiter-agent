@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { loadConfig } from './config.js';
 import { readState, writeState, markProcessed } from './state.js';
 import { screenApplicant } from './screening.js';
+import { scoreApplicant } from './scorer.js';
 import { formatRunLog, startFileLog } from './logger.js';
 import { Agent } from './agent.js';
 import { IndeedService } from './adapters/indeed.js';
@@ -26,7 +27,7 @@ const processedIds = new Set(state?.processedIds ?? []);
 
 console.log(`Starting recruiter agent run. Checking applications since: ${since.toISOString()}`);
 
-const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, config);
+const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, scoreApplicant, config);
 
 const timeout = setTimeout(() => {
   console.error('Agent exceeded 30 minute timeout.');
