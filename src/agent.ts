@@ -133,8 +133,12 @@ export class Agent {
         const row = this.buildRow(applicant, screening, 'Awaiting Review');
         row.driveFolder = folderUrl;
         row.agentRecommendation = screening.decision;
-        row.humanDecision = '';
+        const autoApprove = screening.decision === 'PASS' && score.score > 50;
+        row.humanDecision = autoApprove ? 'Approve' : '';
         row.indeedId = applicant.id;
+        if (autoApprove) {
+          console.log(`[Agent] Auto-approving ${applicant.name} (score: ${score.score}/100, PASS) — will send interview invite on next act run.`);
+        }
         const priorNote = priorContact ? `[Previously contacted: ${priorContact}] ` : '';
         row.notes = `${priorNote}${pdfNote}${screening.reasons.join('; ')}`;
         row.score = String(score.score);

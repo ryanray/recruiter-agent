@@ -120,7 +120,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(sheets.tabs['Active'][0].status).toBe('Awaiting Review');
     expect(sheets.tabs['Active'][0].agentRecommendation).toBe('PASS');
     expect(sheets.tabs['Active'][0].indeedId).toBe('app-1');
-    expect(sheets.tabs['Active'][0].humanDecision).toBe('');
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Approve'); // PASS + score 75 triggers auto-approve
     expect(drive.folders[0].parentId).toBe('awaiting-id');
   });
 
@@ -238,6 +238,33 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(row.keyStrengths).toBe('CNA with dementia experience');
     expect(row.scoreConcerns).toBe('');
     expect(row.interviewQuestions).toBe('Describe a difficult client situation');
+  });
+
+  it('auto-approves a PASS candidate with score > 50', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => ({ ...defaultScore(), score: 75 }), config);
+
+    await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Approve');
+  });
+
+  it('does not auto-approve a PASS candidate with score <= 50', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => ({ ...defaultScore(), score: 50 }), config);
+
+    await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('');
+  });
+
+  it('does not auto-approve a FAIL candidate even with score > 50', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => failResult('Too far'), async () => ({ ...defaultScore(), score: 80 }), config);
+
+    await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('');
   });
 
   it('adds [PDF text extraction failed] to notes when PDF extraction returns empty', async () => {
