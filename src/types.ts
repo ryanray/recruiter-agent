@@ -153,7 +153,7 @@ export interface SheetsAdapter {
     extras?: Partial<CandidateRow>
   ): Promise<void>;
   getActiveCandidates(): Promise<CandidateRow[]>;
-  getEvaluatedCandidateIds(): Promise<Set<string>>;
+  getEvaluatedCandidates(): Promise<{ ids: Set<string>; names: Set<string> }>;
   getCandidatesForAction(): Promise<CandidateRow[]>;
   moveCandidate(name: string, fromTab: string, toTab: string): Promise<void>;
   getPreviouslyContactedNames(lookbackDays?: number): Promise<{ name: string; lastContact: string }[]>;

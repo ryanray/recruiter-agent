@@ -36,10 +36,17 @@ export class Agent {
       },
     };
 
-    const evaluatedIds = await this.sheets.getEvaluatedCandidateIds();
+    const { ids: evaluatedIds, names: evaluatedNames } = await this.sheets.getEvaluatedCandidates();
 
     let applicants = (await this.indeed.getNewApplications(since))
-      .filter(a => !processedIds.has(a.id) && !evaluatedIds.has(a.id));
+      .filter(a => {
+        if (processedIds.has(a.id) || evaluatedIds.has(a.id)) return false;
+        if (evaluatedNames.has(a.name.toLowerCase())) {
+          console.log(`[Agent] Skipping ${a.name} — already on sheet (likely applied to multiple jobs).`);
+          return false;
+        }
+        return true;
+      });
 
     const limit = this.config.run.max_candidates_per_run;
     result.remainingApplicants = limit ? Math.max(0, applicants.length - limit) : 0;

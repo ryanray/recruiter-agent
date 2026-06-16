@@ -161,6 +161,17 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(slack.messages[0].message).toContain('Strong candidate');
   });
 
+  it('skips candidate who applied to a second job when already on the sheet by name', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ name: 'Jane Doe', indeedId: 'app-first-job' }));
+    indeed.seedApplicants([makeApplicant({ id: 'app-second-job', name: 'Jane Doe' })]);
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    const result = await agent.evaluateCandidates(since, new Set(), () => {});
+
+    expect(result.newApplicantsReviewed).toBe(0);
+    expect(drive.folders).toHaveLength(0);
+  });
+
   it('skips candidates whose indeedId is already in Sheets', async () => {
     sheets.tabs['Active'].push(makeCandidate({ indeedId: 'app-1' }));
     indeed.seedApplicants([makeApplicant({ id: 'app-1' })]);
@@ -575,15 +586,18 @@ describe('FakeSheetsAdapter new methods', () => {
 
   beforeEach(() => { sheets = new FakeSheetsAdapter(); });
 
-  it('getEvaluatedCandidateIds returns indeedIds from Active, Rejected, and Checkback Later', async () => {
-    sheets.tabs['Active'].push(makeCandidate({ indeedId: 'id-1' }));
-    sheets.tabs['Rejected'].push(makeCandidate({ indeedId: 'id-2' }));
-    sheets.tabs['Checkback Later'].push(makeCandidate({ indeedId: 'id-3' }));
-    const ids = await sheets.getEvaluatedCandidateIds();
+  it('getEvaluatedCandidates returns indeedIds and names from Active, Rejected, and Checkback Later', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ indeedId: 'id-1', name: 'Jane Doe' }));
+    sheets.tabs['Rejected'].push(makeCandidate({ indeedId: 'id-2', name: 'John Smith' }));
+    sheets.tabs['Checkback Later'].push(makeCandidate({ indeedId: 'id-3', name: 'Alice Brown' }));
+    const { ids, names } = await sheets.getEvaluatedCandidates();
     expect(ids.has('id-1')).toBe(true);
     expect(ids.has('id-2')).toBe(true);
     expect(ids.has('id-3')).toBe(true);
     expect(ids.size).toBe(3);
+    expect(names.has('jane doe')).toBe(true);
+    expect(names.has('john smith')).toBe(true);
+    expect(names.has('alice brown')).toBe(true);
   });
 
   it('getCandidatesForAction returns only Active rows with non-empty humanDecision', async () => {

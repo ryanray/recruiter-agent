@@ -28,14 +28,16 @@ export class FakeSheetsAdapter implements SheetsAdapter {
     return [...this.tabs['Active']];
   }
 
-  async getEvaluatedCandidateIds(): Promise<Set<string>> {
+  async getEvaluatedCandidates(): Promise<{ ids: Set<string>; names: Set<string> }> {
     const ids = new Set<string>();
+    const names = new Set<string>();
     for (const tab of ['Active', 'Rejected', 'Checkback Later']) {
       for (const row of this.tabs[tab] ?? []) {
         if (row.indeedId) ids.add(row.indeedId);
+        if (row.name) names.add(row.name.toLowerCase());
       }
     }
-    return ids;
+    return { ids, names };
   }
 
   async getCandidatesForAction(): Promise<CandidateRow[]> {

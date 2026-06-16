@@ -74,10 +74,12 @@ export class SheetsService implements SheetsAdapter {
     });
   }
 
-  async getEvaluatedCandidateIds(): Promise<Set<string>> {
+  async getEvaluatedCandidates(): Promise<{ ids: Set<string>; names: Set<string> }> {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
     const ids = new Set<string>();
+    const names = new Set<string>();
     const indeedIdCol = COLUMNS.indexOf('indeedId');
+    const nameCol = COLUMNS.indexOf('name');
 
     for (const tab of ['Active', 'Rejected', 'Checkback Later']) {
       const response = await sheets.spreadsheets.values.get({
@@ -87,9 +89,11 @@ export class SheetsService implements SheetsAdapter {
       for (const row of response.data.values ?? []) {
         const id = (row[indeedIdCol] as string | undefined)?.trim();
         if (id) ids.add(id);
+        const name = (row[nameCol] as string | undefined)?.trim().toLowerCase();
+        if (name) names.add(name);
       }
     }
-    return ids;
+    return { ids, names };
   }
 
   async getCandidatesForAction(): Promise<CandidateRow[]> {
