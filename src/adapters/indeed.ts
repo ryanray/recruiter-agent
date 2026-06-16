@@ -50,11 +50,12 @@ export class IndeedService implements IndeedAdapter {
     for (const jobId of this.jobIds) {
       const url = `https://employers.indeed.com/candidates?statusName=All&tab=manage&id=${jobId}`;
       console.log(`[Indeed] Loading candidates for job ${jobId}...`);
-      // Navigate away first to clear the SPA's pagination state, then load the job URL fresh from page 1
-      await page.goto('about:blank');
       await page.goto(url);
       await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
       await jitter(800, 1800);
+
+      // Indeed's SPA persists pagination state across navigations — back-click to page 1 if needed
+      await this.rewindToFirstPage(page);
 
       while (true) {
         const counter = await page.$eval(
@@ -317,6 +318,26 @@ export class IndeedService implements IndeedAdapter {
     const buf = await readFile(path);
     console.log(`[Indeed] Resume downloaded (${buf.length} bytes).`);
     return buf;
+  }
+
+  private async rewindToFirstPage(page: Page): Promise<void> {
+    for (let i = 0; i < 30; i++) {
+      const counter = await page.$eval(
+        '[data-testid="pagination-candidate-counter"]',
+        el => el.textContent?.trim() ?? ''
+      ).catch(() => '');
+
+      // Counter is empty (≤1 page) or starts with "Showing 1-" meaning we're on page 1
+      if (!counter || /^Showing 1[^0-9]/i.test(counter)) break;
+
+      console.log(`[Indeed] Not on page 1 (${counter}) — clicking Previous...`);
+      const navButtons = await page.$$('nav[aria-label="pagination"] button');
+      const prevButton = navButtons[0];
+      if (!prevButton || await prevButton.isDisabled()) break;
+      await prevButton.click();
+      await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 15_000 });
+      await jitter(400, 800);
+    }
   }
 
   async close(): Promise<void> {
