@@ -49,6 +49,12 @@ export interface CandidateRow {
   driveFolder?: string;
   humanDecision: string;
   notes: string;
+  score?: string;
+  scoreRecommendation?: string;
+  scoreTier?: string;
+  keyStrengths?: string;
+  scoreConcerns?: string;
+  interviewQuestions?: string;
 }
 
 export type ExperienceType = 'home_care' | 'care_facility' | 'family' | 'none';
@@ -68,6 +74,15 @@ export interface ScreeningResult {
   reasons: string[];
   extractedData: ExtractedProfile;
   isUrgent: boolean;
+}
+
+export interface ScoreResult {
+  score: number;
+  recommendation: 'Strong Interview' | 'Interview' | 'Maybe' | 'Pass';
+  tier: 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4';
+  keyStrengths: string;
+  concerns: string;
+  interviewQuestions: string;
 }
 
 // --- Run result types ---
@@ -110,6 +125,8 @@ export interface RunResult {
   bookings: RunBookingResult[];
   coldCandidates: RunColdResult[];
   errors: RunError[];
+  pdfFailures: string[];
+  scoreFailures: string[];
   configVersion: string;
   screeningCriteria: {
     required: string[];
@@ -156,6 +173,8 @@ export interface SlackAdapter {
 }
 
 export type Screener = (applicant: Applicant, config: Config) => Promise<ScreeningResult>;
+
+export type Scorer = (applicant: Applicant, config: Config) => Promise<ScoreResult>;
 
 // --- Config type (mirrors config.yaml) ---
 
