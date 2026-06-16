@@ -78,7 +78,7 @@ export class Agent {
           console.log(`[Agent] ${applicant.name} was previously contacted on ${priorContact} — flagging for human review.`);
           await this.slack.post(
             this.config.slack.recruiting_channel,
-            `⚠️ *Previously contacted:* ${applicant.name} — last seen ${priorContact}\nReview before acting: ${applicant.indeedProfileUrl}`
+            `⚠️ *Previously contacted:* ${applicant.name} — last seen ${priorContact}\n<${applicant.indeedProfileUrl}|View in Indeed>`
           );
         }
 
@@ -169,7 +169,7 @@ export class Agent {
             console.log(`[Agent] Strong candidate — posting Slack alert.`);
             await this.slack.post(
               this.config.slack.recruiting_channel,
-              `🚨 *Strong candidate:* ${applicant.name} — CNA + ${screening.extractedData.yearsExperience}yr experience\n${applicant.indeedProfileUrl}`
+              `🚨 *Strong candidate:* ${applicant.name} — CNA + ${screening.extractedData.yearsExperience}yr experience\n<${applicant.indeedProfileUrl}|View in Indeed>`
             );
           }
         } else if (screening.decision === 'FAIL') {
@@ -188,7 +188,7 @@ export class Agent {
           });
           await this.slack.post(
             this.config.slack.recruiting_channel,
-            `❓ *Review needed:* ${applicant.name} — ${screening.reasons.join('; ')}\n${applicant.indeedProfileUrl}`
+            `❓ *Review needed:* ${applicant.name} — ${screening.reasons.join('; ')}\n<${applicant.indeedProfileUrl}|View in Indeed>`
           );
         }
 
@@ -303,7 +303,7 @@ export class Agent {
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
           await this.slack.post(
             this.config.slack.recruiting_channel,
-            `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n${candidate.indeedUrl}`
+            `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n<${candidate.indeedUrl}|View in Indeed>`
           );
         } else {
           console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold`);
