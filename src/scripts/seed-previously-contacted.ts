@@ -55,6 +55,7 @@ export async function seedPreviouslyContacted(
     await sheets.addToPreviouslyContacted({ name, lastContact, notes: 'Seeded from Drive', indeedId: '' });
     existingNames.add(name.toLowerCase());
     added++;
+    await new Promise(r => setTimeout(r, 1100));
   }
 
   console.log(`[Seed] Done. ${added} new entry/entries added, ${skipped} skipped.`);
