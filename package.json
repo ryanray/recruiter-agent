@@ -11,6 +11,7 @@
     "candidates": "npx tsx src/run-candidates.ts",
     "act": "npx tsx src/run-act.ts",
     "seed-previously-contacted": "npx tsx src/scripts/seed-previously-contacted.ts",
+    "add-score-columns": "npx tsx src/scripts/add-score-columns.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
