@@ -93,14 +93,14 @@ export class Agent {
         await this.drive.uploadFile(folderId, 'resume.pdf', resume, 'application/pdf');
 
         console.log(`[Agent] Extracting PDF text for ${applicant.name}...`);
-        const pdfText = await extractPdfText(resume);
+        const { text: pdfText, method: pdfMethod } = await extractPdfText(resume);
         let pdfNote = '';
-        if (!pdfText) {
-          console.log(`[Agent] PDF text extraction failed for ${applicant.name}.`);
+        if (pdfMethod === 'none') {
+          console.log(`[Agent] PDF text extraction failed for ${applicant.name} (pdf-parse and Claude both failed).`);
           result.pdfFailures.push(applicant.name);
           pdfNote = '[PDF text extraction failed] ';
         } else {
-          console.log(`[Agent] PDF text extracted (${pdfText.length} chars).`);
+          console.log(`[Agent] PDF text extracted via ${pdfMethod} (${pdfText.length} chars).`);
         }
 
         console.log(`[Agent] Scoring ${applicant.name}...`);
