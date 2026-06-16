@@ -50,6 +50,8 @@ export class IndeedService implements IndeedAdapter {
     for (const jobId of this.jobIds) {
       const url = `https://employers.indeed.com/candidates?statusName=All&tab=manage&id=${jobId}`;
       console.log(`[Indeed] Loading candidates for job ${jobId}...`);
+      // Navigate away first to clear the SPA's pagination state, then load the job URL fresh from page 1
+      await page.goto('about:blank');
       await page.goto(url);
       await page.waitForSelector('[data-testid="candidate-list-table-container"]', { timeout: 30_000 });
       await jitter(800, 1800);
