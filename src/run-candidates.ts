@@ -15,7 +15,7 @@ const config = loadConfig();
 const slackToken = process.env.SLACK_BOT_TOKEN;
 if (!slackToken) throw new Error('SLACK_BOT_TOKEN not set in .env');
 
-const indeed = new IndeedService();
+const indeed = new IndeedService(config.indeed.job_ids);
 const sheets = new SheetsService(config.google_sheets.tracker_spreadsheet_id);
 const drive = new DriveService();
 const slack = new SlackService(slackToken);

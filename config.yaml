@@ -1,6 +1,6 @@
 run:
   trigger: manual
-  max_candidates_per_run: 20
+  max_candidates_per_run: 50
 
 screening:
   required:
@@ -34,3 +34,8 @@ google_sheets:
 
 slack:
   recruiting_channel: "#recruiting-private"
+
+indeed:
+  job_ids:
+    - 7dbcea1da302
+    - c8e73cd676b5

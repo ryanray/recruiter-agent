@@ -39,4 +39,8 @@ function validateConfig(config: Config): void {
   if (trigger !== 'manual' && trigger !== 'cron') {
     throw new Error(`Invalid value for run.trigger: must be 'manual' or 'cron', got '${trigger}'`);
   }
+  const jobIds = (config as Record<string, Record<string, unknown>>)['indeed']?.['job_ids'];
+  if (!Array.isArray(jobIds) || jobIds.length === 0) {
+    throw new Error('Missing required config: indeed.job_ids (must be a non-empty list of Indeed job IDs)');
+  }
 }

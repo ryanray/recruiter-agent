@@ -17,6 +17,7 @@ const config: Config = {
   },
   google_sheets: { tracker_spreadsheet_id: 'x' },
   slack: { recruiting_channel: '#recruiting' },
+  indeed: { job_ids: ['test-job-1'] },
 };
 
 function makeProfile(overrides: Partial<ExtractedProfile> = {}): ExtractedProfile {

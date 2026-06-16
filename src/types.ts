@@ -210,4 +210,7 @@ export interface Config {
   slack: {
     recruiting_channel: string;
   };
+  indeed: {
+    job_ids: string[];
+  };
 }

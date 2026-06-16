@@ -30,6 +30,9 @@ google_sheets:
   tracker_spreadsheet_id: "sheet-id"
 slack:
   recruiting_channel: "#recruiting"
+indeed:
+  job_ids:
+    - test-job-abc
 `;
 
 beforeEach(() => writeFileSync(TEST_CONFIG_PATH, validYaml));

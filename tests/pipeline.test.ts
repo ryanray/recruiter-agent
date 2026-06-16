@@ -27,6 +27,7 @@ const config: Config = {
   },
   google_sheets: { tracker_spreadsheet_id: 'sheet-id' },
   slack: { recruiting_channel: '#recruiting' },
+  indeed: { job_ids: ['test-job-1'] },
 };
 
 function makeCandidate(overrides: Partial<CandidateRow> = {}): CandidateRow {
