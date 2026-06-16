@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { loadConfig } from './config.js';
 import { startFileLog } from './logger.js';
 import { screenApplicant } from './screening.js';
+import { scoreApplicant } from './scorer.js';
 import { Agent } from './agent.js';
 import { IndeedService } from './adapters/indeed.js';
 import { SheetsService } from './adapters/sheets.js';
@@ -20,7 +21,7 @@ const slack = new SlackService(slackToken);
 
 console.log('[Act] Processing pending human decisions...');
 
-const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, config);
+const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, scoreApplicant, config);
 
 const timeout = setTimeout(() => {
   console.error('Agent exceeded 30 minute timeout.');
