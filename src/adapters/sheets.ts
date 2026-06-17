@@ -7,6 +7,7 @@ const COLUMNS = [
   'experience','certifications','agentRecommendation','status',
   'lastContact','driveFolder','humanDecision','notes',
   'score','scoreRecommendation','scoreTier','keyStrengths','scoreConcerns','interviewQuestions',
+  'processedAt','inviteSentAt','interviewScheduledAt',
 ] as const;
 
 type ColName = typeof COLUMNS[number];
@@ -23,7 +24,7 @@ export class SheetsService implements SheetsAdapter {
     const values = [COLUMNS.map(col => (candidate as Record<string, unknown>)[col] ?? '')];
     await sheets.spreadsheets.values.append({
       spreadsheetId: this.spreadsheetId,
-      range: `${tab}!A:T`,
+      range: `${tab}!A:W`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values },
     });
@@ -37,7 +38,7 @@ export class SheetsService implements SheetsAdapter {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
-      range: 'Active!A:T',
+      range: 'Active!A:W',
     });
     const rows = response.data.values ?? [];
     const rowIndex = rows.findIndex((r, i) => i > 0 && r[0]?.trim() === name.trim());
@@ -54,7 +55,7 @@ export class SheetsService implements SheetsAdapter {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: this.spreadsheetId,
-      range: `Active!A${rowIndex + 1}:T${rowIndex + 1}`,
+      range: `Active!A${rowIndex + 1}:W${rowIndex + 1}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] },
     });
@@ -64,7 +65,7 @@ export class SheetsService implements SheetsAdapter {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
-      range: 'Active!A2:T',
+      range: 'Active!A2:W',
     });
     const rows = response.data.values ?? [];
     return rows.map(row => {
@@ -84,7 +85,7 @@ export class SheetsService implements SheetsAdapter {
     for (const tab of ['Active', 'Rejected', 'Checkback Later']) {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: `${tab}!A2:T`,
+        range: `${tab}!A2:W`,
       });
       for (const row of response.data.values ?? []) {
         const id = (row[indeedIdCol] as string | undefined)?.trim();
@@ -100,7 +101,7 @@ export class SheetsService implements SheetsAdapter {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
-      range: 'Active!A2:T',
+      range: 'Active!A2:W',
     });
     const rows = response.data.values ?? [];
     const humanDecisionCol = COLUMNS.indexOf('humanDecision');
@@ -118,7 +119,7 @@ export class SheetsService implements SheetsAdapter {
 
     const readRes = await sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
-      range: `${fromTab}!A:T`,
+      range: `${fromTab}!A:W`,
     });
     const rows = readRes.data.values ?? [];
     const rowIndex = rows.findIndex((r, i) => i > 0 && (r[0] as string)?.trim() === name.trim());
@@ -126,7 +127,7 @@ export class SheetsService implements SheetsAdapter {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: this.spreadsheetId,
-      range: `${toTab}!A:T`,
+      range: `${toTab}!A:W`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rows[rowIndex]] },
     });

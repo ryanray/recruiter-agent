@@ -55,6 +55,9 @@ export interface CandidateRow {
   keyStrengths?: string;
   scoreConcerns?: string;
   interviewQuestions?: string;
+  processedAt?: string;
+  inviteSentAt?: string;
+  interviewScheduledAt?: string;
 }
 
 export type ExperienceType = 'home_care' | 'care_facility' | 'family' | 'none';
