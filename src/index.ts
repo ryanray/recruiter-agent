@@ -30,10 +30,10 @@ console.log(`Starting recruiter agent run. Checking applications since: ${since.
 const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, scoreApplicant, config);
 
 const timeout = setTimeout(() => {
-  console.error('Agent exceeded 30 minute timeout.');
+  console.error(`Agent exceeded ${config.run.timeout_minutes} minute timeout.`);
   slack.post(config.slack.recruiting_channel, '⚠️ Recruiter agent timed out after 30 minutes. Manual check needed.')
     .finally(() => process.exit(1));
-}, 30 * 60 * 1000);
+}, config.run.timeout_minutes * 60 * 1000);
 
 try {
   const result = await agent.run(since, processedIds, (id) => markProcessed(id));

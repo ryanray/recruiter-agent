@@ -185,6 +185,7 @@ export interface Config {
   run: {
     trigger: 'manual' | 'cron';
     max_candidates_per_run: number | null;
+    timeout_minutes: number;
   };
   screening: {
     required: string[];

@@ -24,9 +24,9 @@ console.log('[Act] Processing pending human decisions...');
 const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, scoreApplicant, config);
 
 const timeout = setTimeout(() => {
-  console.error('Agent exceeded 30 minute timeout.');
+  console.error(`Agent exceeded ${config.run.timeout_minutes} minute timeout.`);
   process.exit(1);
-}, 30 * 60 * 1000);
+}, config.run.timeout_minutes * 60 * 1000);
 
 try {
   await agent.processPendingDecisions();

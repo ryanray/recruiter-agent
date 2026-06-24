@@ -8,6 +8,7 @@ const validYaml = `
 run:
   trigger: manual
   max_candidates_per_run: 10
+  timeout_minutes: 90
 screening:
   required:
     - valid_license_and_transportation

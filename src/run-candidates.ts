@@ -29,9 +29,9 @@ console.log(`[Evaluate] Checking applications since: ${since.toISOString()}`);
 const agent = new Agent(indeed, sheets, drive, slack, screenApplicant, scoreApplicant, config);
 
 const timeout = setTimeout(() => {
-  console.error('Agent exceeded 30 minute timeout.');
+  console.error(`Agent exceeded ${config.run.timeout_minutes} minute timeout.`);
   process.exit(1);
-}, 30 * 60 * 1000);
+}, config.run.timeout_minutes * 60 * 1000);
 
 try {
   const result = await agent.evaluateCandidates(since, processedIds, (id) => markProcessed(id));
