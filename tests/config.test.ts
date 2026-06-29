@@ -19,12 +19,18 @@ screening:
 scheduling:
   cold_candidate_days: 3
   previously_contacted_lookback_days: 365
+  follow_up_days: 3
+  hiring_team_emails: []
 messages:
   interview_request: "Hi {FIRST_NAME}, thanks!"
+  interview_follow_up_1: "Hi {FIRST_NAME}, following up!"
+  interview_follow_up_2: "Hi {FIRST_NAME}, last follow-up!"
 google_drive:
   recruiting_root_folder_id: "root-id"
+  awaiting_action_folder_id: "awaiting-id"
   checkback_folder_id: "checkback-id"
   rejected_folder_id: "rejected-id"
+  never_responded_folder_id: "never-responded-id"
   interview_template_sheet_id: "template-id"
   run_log_doc_id: "log-id"
 google_sheets:

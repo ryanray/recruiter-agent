@@ -17,16 +17,20 @@ screening:
 scheduling:
   cold_candidate_days: 3
   previously_contacted_lookback_days: 365
+  follow_up_days: 3
   hiring_team_emails: ["rray@firstlighthomecare.com", "jray@firstlighthomecare.com", "ashumway@firstlighthomecare.com"]  # Add team member emails to include on phone screen invites
 
 messages:
   interview_request: "Hi {FIRST_NAME}, thank you for applying to FirstLight Home Care of South Jordan! I am impressed with your background and would love to set up a quick phone call so that we can tell you more about us and the position as well as learn more about your background. Please use the link below to schedule a time that works for you."
+  interview_follow_up_1: "Hi {FIRST_NAME}, I wanted to follow up on my previous message about the caregiver position at FirstLight Home Care of South Jordan. We are still very interested in speaking with you! Please use the link below to schedule a quick phone call at your convenience."
+  interview_follow_up_2: "Hi {FIRST_NAME}, this is my final follow-up regarding the caregiver opportunity at FirstLight Home Care of South Jordan. If you are still interested, please use the link below to schedule a call — we would love to connect. If now is not the right time, no worries at all!"
 
 google_drive:
   recruiting_root_folder_id: "1jYcRwUmAdjKs17ajEto4weKbkicP4CX3"
   awaiting_action_folder_id: "1aqlYeZgmcZkUZhUfXPpPWvNFgGcgbb_p"
   checkback_folder_id: "1qSMovk7JilLTJC3iscz5M8GYdRBMXnZj"
   rejected_folder_id: "1Sf0m8rRklyNxkOT-OVwO1l9_H5i47aMJ"
+  never_responded_folder_id: "REPLACE_WITH_ACTUAL_FOLDER_ID"
   interview_template_sheet_id: "1XE-v4MQom3PJfkfzk0cIdOYfOMYp3Qlo"
   run_log_doc_id: "1ACCixPnObKbbEFtocylVsON87TlNkySrX5m27e8q8DE"
 
