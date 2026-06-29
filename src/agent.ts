@@ -249,7 +249,7 @@ export class Agent {
           }
 
           await this.sheets.updateCandidateStatus(
-            candidate.name, 'Screened - Invite Sent', { lastContact: today(), inviteSentAt: today() }
+            candidate.name, 'Screened - Invite Sent', { lastContact: today(), inviteSentAt: today(), inviteCount: '1' }
           );
 
           console.log(`[Agent] Recording ${candidate.name} in Previously Contacted tab (approved).`);
@@ -342,6 +342,76 @@ export class Agent {
         `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}${candidate.score ? `  |  Score: ${candidate.score}/100 (${candidate.scoreTier})` : ''}\n<${candidate.indeedUrl}|Open on Indeed>${candidate.driveFolder ? `  |  <${candidate.driveFolder}|Open on Google Drive>` : ''}`
       );
     }
+  }
+
+  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[] }> {
+    console.log('\n[Agent] Checking for candidates needing follow-up...');
+    const candidates = await this.sheets.getActiveCandidates();
+    const pending = candidates.filter(c => c.status === 'Screened - Invite Sent');
+    console.log(`[Agent] ${pending.length} candidate(s) at Screened - Invite Sent.`);
+
+    const followUpsSent: { name: string; inviteCount: number }[] = [];
+    const neverResponded: string[] = [];
+    const thresholdDays = this.config.scheduling.follow_up_days;
+
+    for (const candidate of pending) {
+      try {
+        if (!candidate.lastContact) {
+          console.warn(`[Agent] ${candidate.name} — no lastContact date, skipping.`);
+          continue;
+        }
+
+        const daysSince = Math.floor(
+          (Date.now() - new Date(candidate.lastContact).getTime()) / 86_400_000
+        );
+
+        if (daysSince < thresholdDays) {
+          console.log(`[Agent] ${candidate.name} — last contact ${daysSince} day(s) ago, threshold is ${thresholdDays} — skipping.`);
+          continue;
+        }
+
+        const inviteCount = parseInt(candidate.inviteCount ?? '1', 10) || 1;
+        const firstName = candidate.name.includes(',')
+          ? candidate.name.split(',')[1]?.trim() ?? candidate.name
+          : candidate.name.split(' ')[0] ?? candidate.name;
+        const folderId = candidate.driveFolder?.match(/folders\/([^/?]+)/)?.[1];
+
+        if (inviteCount >= 3) {
+          console.log(`[Agent] ${candidate.name} — inviteCount=${inviteCount} — no response after 3 invites, moving to Never Responded.`);
+          if (folderId) {
+            console.log(`[Agent] Moving Drive folder to Never Responded...`);
+            await this.drive.moveFolder(folderId, this.config.google_drive.never_responded_folder_id);
+          }
+          console.log(`[Agent] Moving row to Never Responded tab...`);
+          await this.sheets.moveCandidate(candidate.name, 'Active', 'Never Responded');
+          neverResponded.push(candidate.name);
+          continue;
+        }
+
+        const messageTemplate = inviteCount === 1
+          ? this.config.messages.interview_follow_up_1
+          : this.config.messages.interview_follow_up_2;
+        const nextCount = inviteCount + 1;
+
+        console.log(`[Agent] ${candidate.name} — last contact ${daysSince} day(s) ago, inviteCount=${inviteCount} — sending follow-up ${inviteCount}.`);
+        await this.indeed.setupInterview(candidate.indeedId, {
+          message: renderTemplate(messageTemplate, { FIRST_NAME: firstName }),
+          hiringTeamEmails: this.config.scheduling.hiring_team_emails,
+        });
+
+        await this.sheets.updateCandidateStatus(
+          candidate.name, 'Screened - Invite Sent', { lastContact: today(), inviteCount: String(nextCount) }
+        );
+
+        followUpsSent.push({ name: candidate.name, inviteCount: nextCount });
+        console.log(`[Agent] Follow-up ${inviteCount} sent to ${candidate.name} (inviteCount now ${nextCount}).`);
+
+      } catch (err) {
+        console.error(`[Agent] Error processing follow-up for ${candidate.name}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    return { followUpsSent, neverResponded };
   }
 
   async run(
