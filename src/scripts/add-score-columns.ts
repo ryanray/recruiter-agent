@@ -3,16 +3,16 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../google-auth.js';
 import { loadConfig } from '../config.js';
 
-// Full expected header row A–W (must stay in sync with COLUMNS in sheets.ts)
+// Full expected header row A–X (must stay in sync with COLUMNS in sheets.ts)
 const EXPECTED_HEADERS = [
   'Name', 'Phone', 'Email', 'Indeed URL', 'Indeed ID', 'Location',
   'Experience', 'Certifications', 'Agent Recommendation', 'Status',
   'Last Contact', 'Drive Folder', 'Human Decision', 'Notes',
   'Score', 'Score Recommendation', 'Score Tier', 'Key Strengths', 'Concerns', 'Interview Questions',
-  'Processed At', 'Invite Sent At', 'Interview Scheduled At',
+  'Processed At', 'Invite Sent At', 'Interview Scheduled At', 'Invite Count',
 ];
 
-const TABS = ['Active', 'Rejected', 'Checkback Later'];
+const TABS = ['Active', 'Rejected', 'Checkback Later', 'Never Responded'];
 
 const config = loadConfig();
 const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
@@ -23,7 +23,7 @@ for (const tab of TABS) {
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${tab}!A1:W1`,
+    range: `${tab}!A1:X1`,
   });
 
   const existing = (response.data.values?.[0] ?? []) as string[];
