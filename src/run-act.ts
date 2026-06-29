@@ -33,8 +33,9 @@ try {
   await agent.processBookedInterviews();
   const { followUpsSent, neverResponded } = await agent.processFollowUps();
   clearTimeout(timeout);
+  console.log(`[Act] Follow-ups sent: ${followUpsSent.length}`);
   if (followUpsSent.length > 0) {
-    console.log(`[Act] Follow-ups sent: ${followUpsSent.map(f => f.name).join(', ')}`);
+    for (const f of followUpsSent) console.log(`  → ${f.name} — invite #${f.inviteCount}`);
   }
   if (neverResponded.length > 0) {
     console.log(`[Act] Moved to Never Responded: ${neverResponded.join(', ')}`);
