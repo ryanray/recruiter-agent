@@ -29,6 +29,7 @@ export class Agent {
       passed: [], rejected: [], unsure: [],
       bookings: [], coldCandidates: [], errors: [],
       pdfFailures: [], scoreFailures: [],
+      followUpsSent: [], neverResponded: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
         required: this.config.screening.required,
