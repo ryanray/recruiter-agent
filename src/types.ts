@@ -32,7 +32,8 @@ export type CandidateStatus =
   | 'Interview Scheduled'
   | 'Cold'
   | 'UNSURE'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Never Responded';
 
 export interface CandidateRow {
   name: string;
@@ -58,6 +59,7 @@ export interface CandidateRow {
   processedAt?: string;
   inviteSentAt?: string;
   interviewScheduledAt?: string;
+  inviteCount?: string;
 }
 
 export type ExperienceType = 'home_care' | 'care_facility' | 'family' | 'none';
@@ -130,6 +132,8 @@ export interface RunResult {
   errors: RunError[];
   pdfFailures: string[];
   scoreFailures: string[];
+  followUpsSent: { name: string; inviteCount: number }[];
+  neverResponded: string[];
   configVersion: string;
   screeningCriteria: {
     required: string[];
@@ -196,15 +200,19 @@ export interface Config {
     cold_candidate_days: number;
     hiring_team_emails: string[];
     previously_contacted_lookback_days: number;
+    follow_up_days: number;
   };
   messages: {
     interview_request: string;
+    interview_follow_up_1: string;
+    interview_follow_up_2: string;
   };
   google_drive: {
     recruiting_root_folder_id: string;
     awaiting_action_folder_id: string;
     checkback_folder_id: string;
     rejected_folder_id: string;
+    never_responded_folder_id: string;
     interview_template_sheet_id: string;
     run_log_doc_id: string;
   };
