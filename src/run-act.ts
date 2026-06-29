@@ -31,7 +31,14 @@ const timeout = setTimeout(() => {
 try {
   await agent.processPendingDecisions();
   await agent.processBookedInterviews();
+  const { followUpsSent, neverResponded } = await agent.processFollowUps();
   clearTimeout(timeout);
+  if (followUpsSent.length > 0) {
+    console.log(`[Act] Follow-ups sent: ${followUpsSent.map(f => f.name).join(', ')}`);
+  }
+  if (neverResponded.length > 0) {
+    console.log(`[Act] Moved to Never Responded: ${neverResponded.join(', ')}`);
+  }
   console.log('\n[Act] Complete.');
 } catch (err) {
   clearTimeout(timeout);

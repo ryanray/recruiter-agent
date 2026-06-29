@@ -83,6 +83,20 @@ export function formatRunLog(result: RunResult): string {
     }
   }
 
+  if (result.followUpsSent.length > 0) {
+    lines.push('', `FOLLOW-UPS SENT (${result.followUpsSent.length})`);
+    for (const f of result.followUpsSent) {
+      lines.push(`  → ${f.name} — invite #${f.inviteCount}`);
+    }
+  }
+
+  if (result.neverResponded.length > 0) {
+    lines.push('', `NEVER RESPONDED (${result.neverResponded.length})`);
+    for (const name of result.neverResponded) {
+      lines.push(`  → ${name} — moved after 3 unanswered invites`);
+    }
+  }
+
   lines.push(
     '',
     'SCREENING CRITERIA APPLIED',
