@@ -7,21 +7,24 @@ import { FakeSlackAdapter } from '../src/fakes/slack.fake.js';
 import type { Applicant, Config, ScreeningResult, CandidateRow, ScoreResult } from '../src/types.js';
 
 const config: Config = {
-  run: { trigger: 'manual', max_candidates_per_run: null },
+  run: { trigger: 'manual', max_candidates_per_run: null, timeout_minutes: 90 },
   screening: {
     required: ['valid_license_and_transportation', 'within_30_miles_south_jordan'],
     preferred: ['cna_certification'],
     disqualifying: [],
   },
-  scheduling: { cold_candidate_days: 3, hiring_team_emails: [], previously_contacted_lookback_days: 365 },
+  scheduling: { cold_candidate_days: 3, hiring_team_emails: [], previously_contacted_lookback_days: 365, follow_up_days: 3 },
   messages: {
     interview_request: 'Hi {FIRST_NAME}, thanks for applying!',
+    interview_follow_up_1: 'Hi {FIRST_NAME}, following up!',
+    interview_follow_up_2: 'Hi {FIRST_NAME}, last follow-up!',
   },
   google_drive: {
     recruiting_root_folder_id: 'root-id',
     awaiting_action_folder_id: 'awaiting-id',
     checkback_folder_id: 'checkback-id',
     rejected_folder_id: 'rejected-id',
+    never_responded_folder_id: 'never-responded-id',
     interview_template_sheet_id: 'template-id',
     run_log_doc_id: 'log-id',
   },
@@ -578,6 +581,126 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
 
       expect(sheets.previouslyContacted).toHaveLength(0);
     });
+  });
+});
+
+describe('Agent.processFollowUps', () => {
+  let indeed: FakeIndeedAdapter;
+  let sheets: FakeSheetsAdapter;
+  let drive: FakeDriveAdapter;
+  let slack: FakeSlackAdapter;
+  let agent: Agent;
+
+  function staleCandidate(overrides: Partial<CandidateRow> = {}): CandidateRow {
+    const fourDaysAgo = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
+    return makeCandidate({
+      status: 'Screened - Invite Sent',
+      indeedId: 'app-1',
+      inviteCount: '1',
+      lastContact: fourDaysAgo,
+      driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    indeed = new FakeIndeedAdapter();
+    sheets = new FakeSheetsAdapter();
+    drive = new FakeDriveAdapter();
+    slack = new FakeSlackAdapter();
+    drive.folders.push({ id: 'folder-1', name: 'Doe, Jane - 2026-06-03', parentId: 'root-id' });
+    agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+  });
+
+  it('sends follow-up 1 when inviteCount=1 and past threshold', async () => {
+    sheets.tabs['Active'].push(staleCandidate({ inviteCount: '1' }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp).toHaveLength(1);
+    expect(indeed.interviewsSetUp[0].options.message).toContain('following up');
+    const updated = sheets.tabs['Active'][0];
+    expect(updated.inviteCount).toBe('2');
+    expect(updated.lastContact).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  it('sends follow-up 2 when inviteCount=2 and past threshold', async () => {
+    sheets.tabs['Active'].push(staleCandidate({ inviteCount: '2' }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp).toHaveLength(1);
+    expect(indeed.interviewsSetUp[0].options.message).toContain('last follow-up');
+    const updated = sheets.tabs['Active'][0];
+    expect(updated.inviteCount).toBe('3');
+  });
+
+  it('moves to Never Responded when inviteCount=3 and past threshold', async () => {
+    sheets.tabs['Active'].push(staleCandidate({ inviteCount: '3' }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp).toHaveLength(0);
+    expect(drive.moves).toHaveLength(1);
+    expect(drive.moves[0].targetParentId).toBe('never-responded-id');
+    expect(sheets.tabs['Active']).toHaveLength(0);
+    expect(sheets.tabs['Never Responded']).toHaveLength(1);
+  });
+
+  it('skips candidate within follow_up_days threshold', async () => {
+    const yesterday = new Date(Date.now() - 1 * 86_400_000).toISOString().slice(0, 10);
+    sheets.tabs['Active'].push(staleCandidate({ lastContact: yesterday }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp).toHaveLength(0);
+    expect(sheets.tabs['Active'][0].inviteCount).toBe('1');
+  });
+
+  it('defaults inviteCount to 1 when field is missing', async () => {
+    sheets.tabs['Active'].push(staleCandidate({ inviteCount: undefined }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp).toHaveLength(1);
+    expect(indeed.interviewsSetUp[0].options.message).toContain('following up');
+    expect(sheets.tabs['Active'][0].inviteCount).toBe('2');
+  });
+
+  it('uses interview_follow_up_1 message for first follow-up', async () => {
+    sheets.tabs['Active'].push(staleCandidate({ inviteCount: '1', name: 'Jane Doe' }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp[0].options.message).toBe('Hi Jane, following up!');
+  });
+
+  it('uses interview_follow_up_2 message for second follow-up', async () => {
+    sheets.tabs['Active'].push(staleCandidate({ inviteCount: '2', name: 'Jane Doe' }));
+
+    await agent.processFollowUps();
+
+    expect(indeed.interviewsSetUp[0].options.message).toBe('Hi Jane, last follow-up!');
+  });
+
+  it('logs error and continues when setupInterview throws for one candidate', async () => {
+    const fourDaysAgo = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
+    sheets.tabs['Active'].push(staleCandidate({ name: 'Jane Doe', indeedId: 'bad-id', inviteCount: '1' }));
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Bob Jones', indeedId: 'good-id',
+      status: 'Screened - Invite Sent', inviteCount: '1', lastContact: fourDaysAgo,
+    }));
+
+    let callCount = 0;
+    indeed.setupInterview = async (id) => {
+      callCount++;
+      if (id === 'bad-id') throw new Error('Indeed API error');
+    };
+
+    await agent.processFollowUps();
+
+    expect(callCount).toBe(2);
+    expect(sheets.tabs['Active'][1].inviteCount).toBe('2');
   });
 });
 
