@@ -356,13 +356,14 @@ export class Agent {
 
           // Step 4: Move row to Hired tab (fatal — if this fails, skip Tracker)
           console.log(`[Agent] Moving row to Hired tab...`);
+          await this.sheets.updateCandidateStatus(candidate.name, 'Onboarding');
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Hired');
 
           // Step 5: Add to Tracker
           console.log(`[Agent] Adding ${candidate.name} to Tracker...`);
           await this.sheets.addToTracker(lastName, firstName, offerInfo?.startDate ?? '');
         } else {
-          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold`);
+          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold, Hire`);
           continue;
         }
 

@@ -754,6 +754,7 @@ describe('Agent — hire decision', () => {
     expect(sheets.tabs['Hired']).toHaveLength(1);
     expect(sheets.tabs['Active']).toHaveLength(0);
     expect(sheets.trackerRows).toContainEqual({ lastName: 'Ray', firstName: 'Ryan', startDate: '2026-07-15' });
+    expect(sheets.tabs['Hired'][0].status).toBe('Onboarding');
     expect(slack.messages).toHaveLength(0);
   });
 
