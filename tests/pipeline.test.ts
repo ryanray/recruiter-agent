@@ -25,6 +25,7 @@ const config: Config = {
     checkback_folder_id: 'checkback-id',
     rejected_folder_id: 'rejected-id',
     never_responded_folder_id: 'never-responded-id',
+    active_employees_folder_id: 'active-employees-id',
     interview_template_sheet_id: 'template-id',
     run_log_doc_id: 'log-id',
   },
