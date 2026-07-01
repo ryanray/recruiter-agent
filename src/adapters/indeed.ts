@@ -320,6 +320,36 @@ export class IndeedService implements IndeedAdapter {
     return buf;
   }
 
+  async setStatus(applicantId: string, status: string): Promise<void> {
+    const page = await this.getPage();
+    console.log(`[Indeed] Setting status "${status}" for applicant ${applicantId}...`);
+    await jitter(400, 900);
+    await page.goto(`https://employers.indeed.com/candidates/view?id=${applicantId}`);
+    await page.waitForSelector('[data-testid="load-complete"]', { state: 'attached', timeout: 30_000 });
+    await jitter(500, 1000);
+
+    console.log('[Indeed] Opening status menu...');
+    await page.click('[data-testid="Status-Menu"]');
+    await page.waitForSelector('[role="listbox"]', { timeout: 10_000 });
+    await jitter(300, 600);
+
+    const options = await page.$$('[role="option"]');
+    let clicked = false;
+    for (const option of options) {
+      const text = ((await option.textContent()) ?? '').trim();
+      if (text.toLowerCase() === status.toLowerCase()) {
+        await option.click();
+        clicked = true;
+        break;
+      }
+    }
+    if (!clicked) throw new Error(`Indeed status option "${status}" not found in menu`);
+
+    await page.waitForSelector('[role="listbox"]', { state: 'detached', timeout: 10_000 });
+    await jitter(300, 700);
+    console.log(`[Indeed] Status set to "${status}".`);
+  }
+
   private async rewindToFirstPage(page: Page): Promise<void> {
     for (let i = 0; i < 30; i++) {
       const counter = await page.$eval(
