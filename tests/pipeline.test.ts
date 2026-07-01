@@ -705,6 +705,131 @@ describe('Agent.processFollowUps', () => {
   });
 });
 
+describe('Agent — hire decision', () => {
+  let indeed: FakeIndeedAdapter;
+  let sheets: FakeSheetsAdapter;
+  let drive: FakeDriveAdapter;
+  let slack: FakeSlackAdapter;
+
+  beforeEach(() => {
+    indeed = new FakeIndeedAdapter();
+    sheets = new FakeSheetsAdapter();
+    drive = new FakeDriveAdapter();
+    slack = new FakeSlackAdapter();
+  });
+
+  function makeHireCandidate(overrides: Partial<CandidateRow> = {}): CandidateRow {
+    return {
+      name: 'Ray, Ryan', phone: '801-555-1234', email: 'ryan@example.com',
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      indeedId: 'app-1', location: 'Sandy, UT',
+      experience: 'home_care', certifications: '',
+      agentRecommendation: 'PASS', status: 'Interview Scheduled',
+      lastContact: '2026-06-15', driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      humanDecision: 'Hire', notes: '',
+      ...overrides,
+    };
+  }
+
+  function makeOfferInfo(overrides: Partial<import('../src/types.js').OfferInfo> = {}): import('../src/types.js').OfferInfo {
+    return {
+      email: 'ryan@example.com',
+      cellPhone: '801-555-1234',
+      startDate: '2026-07-15',
+      rateOffered: '15',
+      justification: '',
+      ...overrides,
+    };
+  }
+
+  it('full happy path: folder moved, offer info valid, Indeed status set, row moved to Hired, Tracker row appended', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo());
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(drive.moves).toContainEqual({ folderId: 'folder-1', targetParentId: 'active-employees-id' });
+    expect(indeed.statusesSet).toContainEqual({ applicantId: 'app-1', status: 'Hired' });
+    expect(sheets.tabs['Hired']).toHaveLength(1);
+    expect(sheets.tabs['Active']).toHaveLength(0);
+    expect(sheets.trackerRows).toContainEqual({ lastName: 'Ray', firstName: 'Ryan', startDate: '2026-07-15' });
+    expect(slack.messages).toHaveLength(0);
+  });
+
+  it('posts Slack @here alert when offer info has missing fields, hire still completes', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ email: '', cellPhone: '' }));
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(slack.messages).toHaveLength(1);
+    expect(slack.messages[0].message).toContain('@here');
+    expect(slack.messages[0].message).toContain('Ray, Ryan');
+    expect(slack.messages[0].message).toContain('Click here');
+    expect(sheets.tabs['Hired']).toHaveLength(1);
+    expect(sheets.trackerRows).toHaveLength(1);
+  });
+
+  it('includes justification in missing fields when rate > 16 and justification is blank', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ rateOffered: '17', justification: '' }));
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(slack.messages).toHaveLength(1);
+    expect(slack.messages[0].message).toContain('justification');
+  });
+
+  it('does not flag justification as missing when rate is exactly 16', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ rateOffered: '16', justification: '' }));
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(slack.messages).toHaveLength(0);
+  });
+
+  it('posts Slack alert about missing sheet when no spreadsheet found in folder, hire still completes', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    drive.spreadsheetInFolder = null;
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(slack.messages).toHaveLength(1);
+    expect(slack.messages[0].message).toContain('Ray, Ryan');
+    expect(sheets.tabs['Hired']).toHaveLength(1);
+    expect(sheets.trackerRows).toContainEqual({ lastName: 'Ray', firstName: 'Ryan', startDate: '' });
+  });
+
+  it('logs error and continues when setStatus throws — row still moved, Tracker still written', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo());
+    indeed.setStatus = async () => { throw new Error('Indeed API error'); };
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(sheets.tabs['Hired']).toHaveLength(1);
+    expect(sheets.trackerRows).toHaveLength(1);
+  });
+
+  it('logs error and skips Tracker when moveCandidate throws', async () => {
+    sheets.tabs['Active'].push(makeHireCandidate());
+    sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo());
+    sheets.moveCandidate = async () => { throw new Error('Sheets API error'); };
+    const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+
+    await agent.processPendingDecisions();
+
+    expect(sheets.trackerRows).toHaveLength(0);
+  });
+});
+
 describe('FakeSheetsAdapter new methods', () => {
   let sheets: FakeSheetsAdapter;
 
