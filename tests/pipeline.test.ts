@@ -705,6 +705,122 @@ describe('Agent.processFollowUps', () => {
   });
 });
 
+describe('multi-job applicant detection', () => {
+  let indeed: FakeIndeedAdapter;
+  let sheets: FakeSheetsAdapter;
+  let drive: FakeDriveAdapter;
+  let slack: FakeSlackAdapter;
+  let agent: Agent;
+
+  beforeEach(() => {
+    indeed = new FakeIndeedAdapter();
+    sheets = new FakeSheetsAdapter();
+    drive = new FakeDriveAdapter();
+    slack = new FakeSlackAdapter();
+    agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+  });
+
+  it('adds Human Review row, posts Slack, populates humanReviewFlagged, skips Drive/scoring', async () => {
+    const applicant = makeApplicant({
+      id: 'app-multi',
+      name: 'Multi Job',
+      firstName: 'Multi',
+      lastName: 'Job',
+      indeedProfileUrl: 'https://employers.indeed.com/candidates/view?id=app-multi',
+    });
+    indeed.seedApplicants([applicant]);
+    indeed.multiJobApplicantIds.add('app-multi');
+
+    const result = await agent.evaluateCandidates(new Date(0));
+
+    const row = sheets.tabs['Active'].find(c => c.name === 'Multi Job');
+    expect(row).toBeDefined();
+    expect(row!.status).toBe('Human Review');
+    expect(row!.notes).toBe('Applied to 1 other job(s) on this account — human review required');
+    expect(row!.indeedId).toBe('app-multi');
+    expect(row!.humanDecision).toBe('');
+
+    expect(drive.folders).toHaveLength(0);
+    expect(drive.files).toHaveLength(0);
+    expect(drive.copies).toHaveLength(0);
+    expect(indeed.markedSentiments).toHaveLength(0);
+
+    expect(slack.messages).toHaveLength(1);
+    expect(slack.messages[0].message).toContain('Multi Job');
+    expect(slack.messages[0].message).toContain('1 other job(s)');
+    expect(slack.messages[0].message).toContain('Human review needed');
+
+    expect(result.humanReviewFlagged).toEqual(['Multi Job']);
+  });
+
+  it('normal candidate (otherJobCount=0) still goes through full pipeline', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+
+    const result = await agent.evaluateCandidates(new Date(0));
+
+    expect(result.humanReviewFlagged).toHaveLength(0);
+    expect(drive.folders).toHaveLength(1);
+  });
+
+  it('processFollowUps flags Human Review candidate instead of sending follow-up', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Follow Up Person',
+      indeedId: 'app-fu',
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-fu',
+      status: 'Screened - Invite Sent',
+      lastContact: '2026-01-01',
+      inviteCount: '1',
+    }));
+    indeed.multiJobApplicantIds.add('app-fu');
+
+    const { followUpsSent } = await agent.processFollowUps();
+
+    expect(followUpsSent).toHaveLength(0);
+    expect(indeed.interviewsSetUp).toHaveLength(0);
+
+    const row = sheets.tabs['Active'].find(c => c.name === 'Follow Up Person');
+    expect(row!.status).toBe('Human Review');
+
+    expect(slack.messages).toHaveLength(1);
+    expect(slack.messages[0].message).toContain('Follow Up Person');
+    expect(slack.messages[0].message).toContain('Human review needed');
+  });
+
+  it('processFollowUps still sends follow-up when candidate has not applied to other jobs', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Normal Follow Up',
+      indeedId: 'app-normal',
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-normal',
+      status: 'Screened - Invite Sent',
+      lastContact: '2026-01-01',
+      inviteCount: '1',
+    }));
+    // multiJobApplicantIds is empty — otherJobCount will be 0
+
+    const { followUpsSent } = await agent.processFollowUps();
+
+    expect(followUpsSent).toHaveLength(1);
+    expect(indeed.interviewsSetUp).toHaveLength(1);
+  });
+
+  it('processPendingDecisions acts normally on Human Review candidate when humanDecision is set', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Doe, John',
+      indeedId: 'app-hr',
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-hr',
+      status: 'Human Review',
+      humanDecision: 'Reject',
+      driveFolder: '',
+    }));
+
+    await agent.processPendingDecisions();
+
+    const rejectedRow = sheets.tabs['Rejected'].find(c => c.name === 'Doe, John');
+    expect(rejectedRow).toBeDefined();
+    expect(sheets.tabs['Active'].find(c => c.name === 'Doe, John')).toBeUndefined();
+  });
+});
+
 describe('Agent — hire decision', () => {
   let indeed: FakeIndeedAdapter;
   let sheets: FakeSheetsAdapter;

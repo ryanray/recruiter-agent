@@ -67,13 +67,43 @@ export class Agent {
     for (const applicant of applicants) {
       console.log(`\n[Agent] Processing: ${applicant.name} (${applicant.location ?? 'no location'})`);
       try {
-        console.log(`[Agent] Fetching profile text for ${applicant.name}...`);
+        console.log(`[Agent] Fetching profile data for ${applicant.name}...`);
+        let profileFetchResult: { text: string; otherJobCount: number } = { text: '', otherJobCount: 0 };
         try {
-          const { text: profileText } = await this.indeed.fetchProfileData(applicant.indeedProfileUrl);
-          applicant.resumeText = profileText;
-          console.log(`[Agent] Profile text fetched (${applicant.resumeText.length} chars).`);
+          profileFetchResult = await this.indeed.fetchProfileData(applicant.indeedProfileUrl);
+          applicant.resumeText = profileFetchResult.text;
+          console.log(`[Agent] Profile text fetched (${applicant.resumeText.length} chars), otherJobCount=${profileFetchResult.otherJobCount}.`);
         } catch (profileErr) {
-          console.log(`[Agent] Could not fetch profile text: ${profileErr instanceof Error ? profileErr.message : profileErr}`);
+          console.log(`[Agent] Could not fetch profile data: ${profileErr instanceof Error ? profileErr.message : profileErr}`);
+        }
+
+        if (profileFetchResult.otherJobCount > 0) {
+          console.log(`[Agent] ${applicant.name} has applied to ${profileFetchResult.otherJobCount} other job(s) — flagging for human review.`);
+          const row: CandidateRow = {
+            name: applicant.name,
+            phone: applicant.phone ?? '',
+            email: applicant.email ?? '',
+            indeedUrl: applicant.indeedProfileUrl,
+            indeedId: applicant.id,
+            location: applicant.location ?? '',
+            experience: '',
+            certifications: '',
+            agentRecommendation: '',
+            status: 'Human Review',
+            lastContact: today(),
+            driveFolder: '',
+            humanDecision: '',
+            notes: `Applied to ${profileFetchResult.otherJobCount} other job(s) on this account — human review required`,
+            processedAt: today(),
+          };
+          await this.sheets.addCandidate('Active', row);
+          await this.slack.post(
+            this.config.slack.recruiting_channel,
+            `⚠️ *Human review needed:* ${applicant.name} has applied to ${profileFetchResult.otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${applicant.indeedProfileUrl}|View in Indeed>`
+          );
+          result.humanReviewFlagged.push(applicant.name);
+          markProcessed(applicant.id);
+          continue;
         }
 
         const priorContact = priorContactMap.get(applicant.name.toLowerCase());
@@ -433,6 +463,22 @@ export class Agent {
         if (daysSince < thresholdDays) {
           console.log(`[Agent] ${candidate.name} — last contact ${daysSince} day(s) ago, threshold is ${thresholdDays} — skipping.`);
           continue;
+        }
+
+        console.log(`[Agent] Checking for multi-job application for ${candidate.name}...`);
+        try {
+          const { otherJobCount } = await this.indeed.fetchProfileData(candidate.indeedUrl);
+          if (otherJobCount > 0) {
+            console.log(`[Agent] ${candidate.name} has applied to ${otherJobCount} other job(s) — flagging for human review instead of sending follow-up.`);
+            await this.sheets.updateCandidateStatus(candidate.name, 'Human Review');
+            await this.slack.post(
+              this.config.slack.recruiting_channel,
+              `⚠️ *Human review needed:* ${candidate.name} has applied to ${otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${candidate.indeedUrl}|View in Indeed>`
+            );
+            continue;
+          }
+        } catch (profileErr) {
+          console.log(`[Agent] Could not check multi-job status for ${candidate.name}: ${profileErr instanceof Error ? profileErr.message : profileErr} — proceeding with follow-up.`);
         }
 
         const inviteCount = parseInt(candidate.inviteCount ?? '1', 10) || 1;
