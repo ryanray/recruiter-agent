@@ -76,6 +76,7 @@ export class DriveService implements DriveAdapter {
       fields: 'files(id, name)',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
+      corpora: 'allDrives',
     });
     const files = response.data.files ?? [];
     if (files.length === 0) {
