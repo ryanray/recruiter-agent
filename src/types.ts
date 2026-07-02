@@ -70,6 +70,7 @@ export interface CandidateRow {
   inviteSentAt?: string;
   interviewScheduledAt?: string;
   inviteCount?: string;
+  createdAt?: string;
 }
 
 export type ExperienceType = 'home_care' | 'care_facility' | 'family' | 'none';
