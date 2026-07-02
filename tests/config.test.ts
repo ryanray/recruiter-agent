@@ -31,6 +31,7 @@ google_drive:
   checkback_folder_id: "checkback-id"
   rejected_folder_id: "rejected-id"
   never_responded_folder_id: "never-responded-id"
+  active_employees_folder_id: "active-employees-id"
   interview_template_sheet_id: "template-id"
   run_log_doc_id: "log-id"
 google_sheets:
@@ -74,5 +75,13 @@ describe('loadConfig', () => {
   it('throws when config is null or empty', () => {
     writeFileSync(TEST_CONFIG_PATH, '');
     expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow('Config file is empty or not a valid YAML object');
+  });
+
+  it('throws when active_employees_folder_id is missing', () => {
+    writeFileSync(
+      TEST_CONFIG_PATH,
+      validYaml.replace('active_employees_folder_id: "active-employees-id"', 'active_employees_folder_id: ""')
+    );
+    expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow('google_drive.active_employees_folder_id');
   });
 });

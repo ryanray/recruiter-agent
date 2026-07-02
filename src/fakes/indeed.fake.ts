@@ -5,6 +5,7 @@ export class FakeIndeedAdapter implements IndeedAdapter {
   private interviews: Interview[] = [];
   markedSentiments: { applicantId: string; sentiment: string }[] = [];
   interviewsSetUp: { applicantId: string; options: { message: string; hiringTeamEmails: string[] } }[] = [];
+  statusesSet: { applicantId: string; status: string }[] = [];
 
   seedApplicants(applicants: Applicant[]): void {
     this.applicants = applicants;
@@ -36,5 +37,9 @@ export class FakeIndeedAdapter implements IndeedAdapter {
 
   async downloadResume(applicantId: string): Promise<Buffer> {
     return Buffer.from(`Resume content for applicant ${applicantId}`);
+  }
+
+  async setStatus(applicantId: string, status: string): Promise<void> {
+    this.statusesSet.push({ applicantId, status });
   }
 }

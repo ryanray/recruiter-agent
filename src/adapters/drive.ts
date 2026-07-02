@@ -67,4 +67,23 @@ export class DriveService implements DriveAdapter {
     console.log(`[Drive] ${files.length} subfolder(s) found.`);
     return files;
   }
+
+  async findSpreadsheetInFolder(folderId: string): Promise<{ id: string; name: string } | null> {
+    const drive = google.drive({ version: 'v3', auth: getGoogleAuth() });
+    console.log(`[Drive] Looking for spreadsheet in folder ${folderId}...`);
+    const response = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
+      fields: 'files(id, name)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+    const files = response.data.files ?? [];
+    if (files.length === 0) {
+      console.log('[Drive] No spreadsheet found in folder.');
+      return null;
+    }
+    const file = { id: files[0].id!, name: files[0].name! };
+    console.log(`[Drive] Found spreadsheet: "${file.name}" (${file.id})`);
+    return file;
+  }
 }

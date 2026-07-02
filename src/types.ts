@@ -26,6 +26,14 @@ export interface PreviouslyContactedEntry {
   indeedId: string; // empty string for seeded rows
 }
 
+export interface OfferInfo {
+  email: string;
+  cellPhone: string;
+  startDate: string;
+  rateOffered: string;
+  justification: string;
+}
+
 export type CandidateStatus =
   | 'Awaiting Review'
   | 'Screened - Invite Sent'
@@ -33,7 +41,8 @@ export type CandidateStatus =
   | 'Cold'
   | 'UNSURE'
   | 'Rejected'
-  | 'Never Responded';
+  | 'Never Responded'
+  | 'Onboarding';
 
 export interface CandidateRow {
   name: string;
@@ -150,6 +159,7 @@ export interface IndeedAdapter {
   setupInterview(applicantId: string, options: { message: string; hiringTeamEmails: string[] }): Promise<void>;
   getBookedInterviews(): Promise<Interview[]>;
   downloadResume(applicantId: string): Promise<Buffer>;
+  setStatus(applicantId: string, status: string): Promise<void>;
 }
 
 export interface SheetsAdapter {
@@ -165,6 +175,8 @@ export interface SheetsAdapter {
   moveCandidate(name: string, fromTab: string, toTab: string): Promise<void>;
   getPreviouslyContactedNames(lookbackDays?: number): Promise<{ name: string; lastContact: string }[]>;
   addToPreviouslyContacted(entry: PreviouslyContactedEntry): Promise<void>;
+  readOfferInfo(spreadsheetId: string): Promise<OfferInfo>;
+  addToTracker(lastName: string, firstName: string, startDate: string): Promise<void>;
 }
 
 export interface DriveAdapter {
@@ -173,6 +185,7 @@ export interface DriveAdapter {
   uploadFile(folderId: string, name: string, content: Buffer, mimeType: string): Promise<void>;
   copyTemplate(templateId: string, destFolderId: string, name: string): Promise<void>;
   listSubfolders(parentId: string): Promise<{ id: string; name: string }[]>;
+  findSpreadsheetInFolder(folderId: string): Promise<{ id: string; name: string } | null>;
 }
 
 export interface SlackAdapter {
@@ -213,6 +226,7 @@ export interface Config {
     checkback_folder_id: string;
     rejected_folder_id: string;
     never_responded_folder_id: string;
+    active_employees_folder_id: string;
     interview_template_sheet_id: string;
     run_log_doc_id: string;
   };

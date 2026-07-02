@@ -1,4 +1,4 @@
-import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry } from '../types.js';
+import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry, OfferInfo } from '../types.js';
 
 export class FakeSheetsAdapter implements SheetsAdapter {
   tabs: Record<string, CandidateRow[]> = {
@@ -6,6 +6,8 @@ export class FakeSheetsAdapter implements SheetsAdapter {
     'Checkback Later': [], 'Communication Log': [],
   };
   previouslyContacted: PreviouslyContactedEntry[] = [];
+  offerInfoBySpreadsheetId: Map<string, OfferInfo> = new Map();
+  trackerRows: { lastName: string; firstName: string; startDate: string }[] = [];
 
   async addCandidate(tab: string, candidate: CandidateRow): Promise<void> {
     if (!this.tabs[tab]) this.tabs[tab] = [];
@@ -63,5 +65,15 @@ export class FakeSheetsAdapter implements SheetsAdapter {
 
   async addToPreviouslyContacted(entry: PreviouslyContactedEntry): Promise<void> {
     this.previouslyContacted.push({ ...entry });
+  }
+
+  async readOfferInfo(spreadsheetId: string): Promise<OfferInfo> {
+    return this.offerInfoBySpreadsheetId.get(spreadsheetId) ?? {
+      email: '', cellPhone: '', startDate: '', rateOffered: '', justification: '',
+    };
+  }
+
+  async addToTracker(lastName: string, firstName: string, startDate: string): Promise<void> {
+    this.trackerRows.push({ lastName, firstName, startDate });
   }
 }

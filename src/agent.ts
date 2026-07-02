@@ -1,6 +1,6 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo,
 } from './types.js';
 import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
@@ -306,8 +306,64 @@ export class Agent {
             this.config.slack.recruiting_channel,
             `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n<${candidate.indeedUrl}|View in Indeed>`
           );
+        } else if (decision === 'hire') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+
+          // Step 1: Move Drive folder to Active Employees
+          if (folderId) {
+            console.log(`[Agent] Moving Drive folder to Active Employees...`);
+            await this.drive.moveFolder(folderId, this.config.google_drive.active_employees_folder_id);
+          } else {
+            console.warn(`[Agent] No Drive folder found for ${candidate.name} — skipping folder move.`);
+          }
+
+          // Step 2: Validate Offer Info tab
+          let offerInfo: OfferInfo | null = null;
+          const spreadsheet = folderId
+            ? await this.drive.findSpreadsheetInFolder(folderId)
+            : null;
+
+          if (!spreadsheet) {
+            console.warn(`[Agent] No spreadsheet found in folder for ${candidate.name} — skipping Offer Info check.`);
+            await this.slack.post(
+              this.config.slack.recruiting_channel,
+              `@here Action required: could not find interview questions sheet for ${candidate.name}. Please verify their Drive folder.`
+            );
+          } else {
+            console.log(`[Agent] Reading Offer Info tab...`);
+            offerInfo = await this.sheets.readOfferInfo(spreadsheet.id);
+            const missingFields = validateOfferInfo(offerInfo);
+            if (missingFields.length > 0) {
+              console.warn(`[Agent] Missing offer info for ${candidate.name}: ${missingFields.join(', ')}`);
+              const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheet.id}/edit`;
+              await this.slack.post(
+                this.config.slack.recruiting_channel,
+                `@here Action required: missing offer info for ${candidate.name} (${missingFields.join(', ')}). <${sheetUrl}|Click here>`
+              );
+            } else {
+              console.log(`[Agent] Offer info valid — start date: ${offerInfo.startDate}, rate: $${offerInfo.rateOffered}/hr`);
+            }
+          }
+
+          // Step 3: Set Indeed status to Hired (non-fatal if it fails)
+          console.log(`[Agent] Setting Indeed status to Hired...`);
+          try {
+            await this.indeed.setStatus(candidate.indeedId, 'Hired');
+          } catch (err) {
+            console.error(`[Agent] Failed to set Indeed status for ${candidate.name}: ${err instanceof Error ? err.message : err}`);
+          }
+
+          // Step 4: Move row to Hired tab (fatal — if this fails, skip Tracker)
+          console.log(`[Agent] Moving row to Hired tab...`);
+          await this.sheets.updateCandidateStatus(candidate.name, 'Onboarding');
+          await this.sheets.moveCandidate(candidate.name, 'Active', 'Hired');
+
+          // Step 5: Add to Tracker
+          console.log(`[Agent] Adding ${candidate.name} to Tracker...`);
+          await this.sheets.addToTracker(lastName, firstName, offerInfo?.startDate ?? '');
         } else {
-          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold`);
+          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold, Hire`);
           continue;
         }
 
@@ -452,4 +508,16 @@ export class Agent {
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function validateOfferInfo(info: OfferInfo): string[] {
+  const missing: string[] = [];
+  if (!info.email) missing.push('email');
+  if (!info.cellPhone) missing.push('cell phone');
+  if (!info.startDate) missing.push('start date');
+  if (!info.rateOffered) missing.push('rate offered');
+  if (info.rateOffered && parseFloat(info.rateOffered) > 16 && !info.justification) {
+    missing.push('justification (rate > $16)');
+  }
+  return missing;
 }

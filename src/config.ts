@@ -24,6 +24,7 @@ const REQUIRED_FIELDS: [string, string][] = [
   ['google_drive', 'checkback_folder_id'],
   ['google_drive', 'rejected_folder_id'],
   ['google_drive', 'never_responded_folder_id'],
+  ['google_drive', 'active_employees_folder_id'],
   ['google_drive', 'interview_template_sheet_id'],
   ['google_drive', 'run_log_doc_id'],
   ['google_sheets', 'tracker_spreadsheet_id'],

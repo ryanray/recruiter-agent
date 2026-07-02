@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../google-auth.js';
-import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry } from '../types.js';
+import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry, OfferInfo } from '../types.js';
 
 const COLUMNS = [
   'name','phone','email','indeedUrl','indeedId','location',
@@ -184,6 +184,36 @@ export class SheetsService implements SheetsAdapter {
       range: 'Previously Contacted!A:D',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[entry.name, entry.lastContact, entry.notes, entry.indeedId]] },
+    });
+  }
+
+  async readOfferInfo(spreadsheetId: string): Promise<OfferInfo> {
+    const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
+    console.log(`[Sheets] Reading Offer Info tab from spreadsheet ${spreadsheetId}...`);
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "'Offer Info'!B2:B7",
+    });
+    const values = response.data.values ?? [];
+    const cell = (row: number): string => ((values[row]?.[0] as string | undefined) ?? '').trim();
+    return {
+      email: cell(0),       // B2
+      cellPhone: cell(1),   // B3
+      startDate: cell(2),   // B4
+      // B5 (index 3) is a spacer row — skipped
+      rateOffered: cell(4), // B6
+      justification: cell(5), // B7
+    };
+  }
+
+  async addToTracker(lastName: string, firstName: string, startDate: string): Promise<void> {
+    const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
+    console.log(`[Sheets] Adding ${lastName}, ${firstName} to Tracker tab...`);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: 'Tracker!A:D',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[lastName, firstName, 'Onboarding', startDate]] },
     });
   }
 }
