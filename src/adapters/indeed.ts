@@ -347,6 +347,15 @@ export class IndeedService implements IndeedAdapter {
 
     await page.waitForSelector('[role="listbox"]', { state: 'detached', timeout: 10_000 });
     await jitter(300, 700);
+
+    // After marking Hired, Indeed shows a modal asking to reject remaining candidates — always dismiss it
+    const cancelButton = await page.$('#hire_made_cancel');
+    if (cancelButton) {
+      console.log('[Indeed] Dismissing "reject remaining candidates" modal...');
+      await cancelButton.click();
+      await jitter(300, 600);
+    }
+
     console.log(`[Indeed] Status set to "${status}".`);
   }
 
