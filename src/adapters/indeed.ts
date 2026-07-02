@@ -124,8 +124,25 @@ export class IndeedService implements IndeedAdapter {
     return applicants;
   }
 
-  async fetchProfileText(profileUrl: string): Promise<string> {
-    return this.fetchProfileTextInternal(profileUrl);
+  async fetchProfileData(profileUrl: string): Promise<{ text: string; otherJobCount: number }> {
+    const text = await this.fetchProfileTextInternal(profileUrl);
+
+    const page = await this.getPage();
+    let otherJobCount = 0;
+    try {
+      const noteSection = await page.$('[data-testid="note-section"]');
+      if (noteSection) {
+        const noteText = (await noteSection.textContent()) ?? '';
+        const match = noteText.match(/This candidate has applied to (\d+) other job/i);
+        if (match) {
+          otherJobCount = parseInt(match[1], 10);
+        }
+      }
+    } catch {
+      // note section absent or unreadable — treat as no other jobs
+    }
+
+    return { text, otherJobCount };
   }
 
   private async fetchProfileTextInternal(profileUrl: string): Promise<string> {

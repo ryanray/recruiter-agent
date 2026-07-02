@@ -6,6 +6,7 @@ export class FakeIndeedAdapter implements IndeedAdapter {
   markedSentiments: { applicantId: string; sentiment: string }[] = [];
   interviewsSetUp: { applicantId: string; options: { message: string; hiringTeamEmails: string[] } }[] = [];
   statusesSet: { applicantId: string; status: string }[] = [];
+  multiJobApplicantIds: Set<string> = new Set();
 
   seedApplicants(applicants: Applicant[]): void {
     this.applicants = applicants;
@@ -19,8 +20,11 @@ export class FakeIndeedAdapter implements IndeedAdapter {
     return [...this.applicants];
   }
 
-  async fetchProfileText(_profileUrl: string): Promise<string> {
-    return 'Fake profile text';
+  async fetchProfileData(profileUrl: string): Promise<{ text: string; otherJobCount: number }> {
+    const idMatch = profileUrl.match(/[?&]id=([^&]+)/);
+    const id = idMatch?.[1] ?? '';
+    const otherJobCount = this.multiJobApplicantIds.has(id) ? 1 : 0;
+    return { text: 'Fake profile text', otherJobCount };
   }
 
   async markSentiment(applicantId: string, sentiment: 'yes' | 'maybe' | 'no'): Promise<void> {

@@ -42,7 +42,8 @@ export type CandidateStatus =
   | 'UNSURE'
   | 'Rejected'
   | 'Never Responded'
-  | 'Onboarding';
+  | 'Onboarding'
+  | 'Human Review';
 
 export interface CandidateRow {
   name: string;
@@ -143,6 +144,7 @@ export interface RunResult {
   scoreFailures: string[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
+  humanReviewFlagged: string[];
   configVersion: string;
   screeningCriteria: {
     required: string[];
@@ -154,7 +156,7 @@ export interface RunResult {
 
 export interface IndeedAdapter {
   getNewApplications(since: Date): Promise<Applicant[]>;
-  fetchProfileText(profileUrl: string): Promise<string>;
+  fetchProfileData(profileUrl: string): Promise<{ text: string; otherJobCount: number }>;
   markSentiment(applicantId: string, sentiment: 'yes' | 'maybe' | 'no'): Promise<void>;
   setupInterview(applicantId: string, options: { message: string; hiringTeamEmails: string[] }): Promise<void>;
   getBookedInterviews(): Promise<Interview[]>;

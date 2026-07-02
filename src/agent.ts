@@ -30,6 +30,7 @@ export class Agent {
       bookings: [], coldCandidates: [], errors: [],
       pdfFailures: [], scoreFailures: [],
       followUpsSent: [], neverResponded: [],
+      humanReviewFlagged: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
         required: this.config.screening.required,
@@ -68,7 +69,8 @@ export class Agent {
       try {
         console.log(`[Agent] Fetching profile text for ${applicant.name}...`);
         try {
-          applicant.resumeText = await this.indeed.fetchProfileText(applicant.indeedProfileUrl);
+          const { text: profileText } = await this.indeed.fetchProfileData(applicant.indeedProfileUrl);
+          applicant.resumeText = profileText;
           console.log(`[Agent] Profile text fetched (${applicant.resumeText.length} chars).`);
         } catch (profileErr) {
           console.log(`[Agent] Could not fetch profile text: ${profileErr instanceof Error ? profileErr.message : profileErr}`);
