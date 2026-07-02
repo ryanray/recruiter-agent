@@ -362,8 +362,14 @@ export class Agent {
           // Step 5: Add to Tracker
           console.log(`[Agent] Adding ${candidate.name} to Tracker...`);
           await this.sheets.addToTracker(lastName, firstName, offerInfo?.startDate ?? '');
+        } else if (decision === 'none') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name} (None — no action).`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+        } else if (decision === 'do not contact') {
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name} (Do Not Contact — no action).`);
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
         } else {
-          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold, Hire`);
+          console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold, Hire, None, Do Not Contact`);
           continue;
         }
 
