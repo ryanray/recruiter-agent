@@ -106,7 +106,10 @@ export class SheetsService implements SheetsAdapter {
     const rows = response.data.values ?? [];
     const humanDecisionCol = COLUMNS.indexOf('humanDecision');
     return rows
-      .filter(row => !!((row[humanDecisionCol] as string) ?? '').trim())
+      .filter(row => {
+        const val = ((row[humanDecisionCol] as string) ?? '').trim();
+        return val && val.toLowerCase() !== 'none';
+      })
       .map(row => {
         const candidate: Record<string, string> = {};
         COLUMNS.forEach((col, i) => { candidate[col] = (row[i] as string) ?? ''; });

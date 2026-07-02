@@ -230,7 +230,7 @@ export class Agent {
       try {
         if (decision === 'approve') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
 
           console.log(`[Agent] Marking sentiment "yes" on Indeed...`);
           await this.indeed.markSentiment(candidate.indeedId, 'yes');
@@ -263,7 +263,7 @@ export class Agent {
 
         } else if (decision === 'reject') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
 
           console.log(`[Agent] Marking sentiment "no" on Indeed (automated follow-up sends in 3 days)...`);
           await this.indeed.markSentiment(candidate.indeedId, 'no');
@@ -286,7 +286,7 @@ export class Agent {
 
         } else if (decision === 'checkback later') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
 
           console.log(`[Agent] Marking sentiment "yes" on Indeed...`);
           await this.indeed.markSentiment(candidate.indeedId, 'yes');
@@ -301,14 +301,14 @@ export class Agent {
 
         } else if (decision === 'hold') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name} and posting Slack alert...`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
           await this.slack.post(
             this.config.slack.recruiting_channel,
             `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n<${candidate.indeedUrl}|View in Indeed>`
           );
         } else if (decision === 'hire') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
 
           // Step 1: Move Drive folder to Active Employees
           if (folderId) {
@@ -364,10 +364,10 @@ export class Agent {
           await this.sheets.addToTracker(lastName, firstName, offerInfo?.startDate ?? '');
         } else if (decision === 'none') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name} (None — no action).`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
         } else if (decision === 'do not contact') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name} (Do Not Contact — no action).`);
-          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: '' });
+          await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
         } else {
           console.warn(`[Agent] Unrecognized humanDecision for ${candidate.name}: "${candidate.humanDecision.trim()}" — skipping. Valid values: Approve, Reject, Checkback Later, Hold, Hire, None, Do Not Contact`);
           continue;
