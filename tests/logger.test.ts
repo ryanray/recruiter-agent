@@ -19,6 +19,7 @@ function makeResult(overrides: Partial<RunResult> = {}): RunResult {
     scoreFailures: [],
     followUpsSent: [],
     neverResponded: [],
+    humanReviewFlagged: [],
     configVersion: 'abc1234',
     screeningCriteria: {
       required: ['within_20_miles_south_jordan', 'valid_license_and_transportation'],

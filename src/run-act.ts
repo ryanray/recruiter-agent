@@ -31,7 +31,7 @@ const timeout = setTimeout(() => {
 try {
   await agent.processPendingDecisions();
   await agent.processBookedInterviews();
-  const { followUpsSent, neverResponded } = await agent.processFollowUps();
+  const { followUpsSent, neverResponded, humanReviewFlagged } = await agent.processFollowUps();
   clearTimeout(timeout);
   console.log(`[Act] Follow-ups sent: ${followUpsSent.length}`);
   if (followUpsSent.length > 0) {
@@ -39,6 +39,9 @@ try {
   }
   if (neverResponded.length > 0) {
     console.log(`[Act] Moved to Never Responded: ${neverResponded.join(', ')}`);
+  }
+  if (humanReviewFlagged.length > 0) {
+    console.log(`[Act] Flagged for human review: ${humanReviewFlagged.join(', ')}`);
   }
   console.log('\n[Act] Complete.');
 } catch (err) {

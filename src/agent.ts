@@ -439,7 +439,7 @@ export class Agent {
     }
   }
 
-  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[] }> {
+  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: string[] }> {
     console.log('\n[Agent] Checking for candidates needing follow-up...');
     const candidates = await this.sheets.getActiveCandidates();
     const pending = candidates.filter(c => c.status === 'Screened - Invite Sent');
@@ -447,6 +447,7 @@ export class Agent {
 
     const followUpsSent: { name: string; inviteCount: number }[] = [];
     const neverResponded: string[] = [];
+    const humanReviewFlagged: string[] = [];
     const thresholdDays = this.config.scheduling.follow_up_days;
 
     for (const candidate of pending) {
@@ -475,6 +476,7 @@ export class Agent {
               this.config.slack.recruiting_channel,
               `⚠️ *Human review needed:* ${candidate.name} has applied to ${otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${candidate.indeedUrl}|View in Indeed>`
             );
+            humanReviewFlagged.push(candidate.name);
             continue;
           }
         } catch (profileErr) {
@@ -522,7 +524,7 @@ export class Agent {
       }
     }
 
-    return { followUpsSent, neverResponded };
+    return { followUpsSent, neverResponded, humanReviewFlagged };
   }
 
   async run(

@@ -97,6 +97,13 @@ export function formatRunLog(result: RunResult): string {
     }
   }
 
+  if (result.humanReviewFlagged.length > 0) {
+    lines.push('', `HUMAN REVIEW FLAGGED (${result.humanReviewFlagged.length})`);
+    for (const name of result.humanReviewFlagged) {
+      lines.push(`  ⚠️ ${name} — applied to multiple jobs, awaiting human decision`);
+    }
+  }
+
   lines.push(
     '',
     'SCREENING CRITERIA APPLIED',
