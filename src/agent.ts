@@ -245,7 +245,8 @@ export class Agent {
     return result;
   }
 
-  async processPendingDecisions(): Promise<void> {
+  async processPendingDecisions(): Promise<{ actioned: { name: string; decision: string }[] }> {
+    const actioned: { name: string; decision: string }[] = [];
     const candidates = await this.sheets.getCandidatesForAction();
     console.log(`\n[Agent] ${candidates.length} candidate(s) with pending human decisions.`);
 
@@ -406,20 +407,23 @@ export class Agent {
           continue;
         }
 
+        actioned.push({ name: candidate.name, decision: candidate.humanDecision.trim() });
         console.log(`[Agent] Done acting on ${candidate.name}.`);
       } catch (err) {
         console.error(`[Agent] Error acting on ${candidate.name}: ${err instanceof Error ? err.message : err}`);
       }
     }
+    return { actioned };
   }
 
-  async processBookedInterviews(): Promise<void> {
+  async processBookedInterviews(): Promise<{ newlyBooked: { name: string; scheduledAt: string }[] }> {
     console.log('\n[Agent] Checking for booked interviews...');
     const interviews = await this.indeed.getBookedInterviews();
     console.log(`[Agent] ${interviews.length} booked interview(s) found on Indeed.`);
 
     const activeCandidates = await this.sheets.getActiveCandidates();
     const byIndeedId = new Map(activeCandidates.map(c => [c.indeedId, c]));
+    const newlyBooked: { name: string; scheduledAt: string }[] = [];
 
     for (const interview of interviews) {
       const candidate = byIndeedId.get(interview.applicantId);
@@ -437,7 +441,9 @@ export class Agent {
         this.config.slack.recruiting_channel,
         `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}${candidate.score ? `  |  Score: ${candidate.score}/100 (${candidate.scoreTier})` : ''}\n<${candidate.indeedUrl}|Open on Indeed>${candidate.driveFolder ? `  |  <${candidate.driveFolder}|Open on Google Drive>` : ''}`
       );
+      newlyBooked.push({ name: candidate.name, scheduledAt: interview.scheduledAt });
     }
+    return { newlyBooked };
   }
 
   async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: string[] }> {

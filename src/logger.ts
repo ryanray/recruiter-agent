@@ -115,6 +115,86 @@ export function formatRunLog(result: RunResult): string {
   return lines.join('\n');
 }
 
+export function formatCandidateSummary(result: RunResult): string {
+  const timestamp = result.startedAt.toISOString().slice(0, 16).replace('T', ' ');
+  const totalSecs = Math.round(result.durationMs / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  const lines: string[] = [
+    `*Chandler — Evaluate Run* (${timestamp} UTC, ${mins}m ${secs}s)`,
+    `*New applicants reviewed:* ${result.newApplicantsReviewed}  |  Remaining: ${result.remainingApplicants}`,
+  ];
+
+  if (result.passed.length > 0) {
+    lines.push(`\n*Passed (${result.passed.length}):*`);
+    for (const c of result.passed) lines.push(`  ✓ ${c.name} — ${c.location}`);
+  }
+  if (result.unsure.length > 0) {
+    lines.push(`\n*Unsure — needs review (${result.unsure.length}):*`);
+    for (const c of result.unsure) lines.push(`  ? ${c.name} — ${c.unclearField}`);
+  }
+  if (result.rejected.length > 0) {
+    lines.push(`\n*Rejected (${result.rejected.length}):*`);
+    for (const c of result.rejected) lines.push(`  ✗ ${c.name} — ${c.reason}`);
+  }
+  if (result.humanReviewFlagged.length > 0) {
+    lines.push(`\n*Flagged for Human Review (${result.humanReviewFlagged.length}):*`);
+    for (const name of result.humanReviewFlagged) lines.push(`  ⚠️ ${name}`);
+  }
+  if (result.errors.length > 0) {
+    lines.push(`\n*Errors (${result.errors.length}):*`);
+    for (const e of result.errors) lines.push(`  ✗ ${e.description}: ${e.reason}`);
+  }
+  if (result.newApplicantsReviewed === 0) {
+    lines.push('\n_No new applicants._');
+  }
+  return lines.join('\n');
+}
+
+export function formatActSummary(params: {
+  actioned: { name: string; decision: string }[];
+  newlyBooked: { name: string; scheduledAt: string }[];
+  followUpsSent: { name: string; inviteCount: number }[];
+  neverResponded: string[];
+  humanReviewFlagged: string[];
+}): string {
+  const { actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged } = params;
+  const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const lines: string[] = [`*Chandler — Act Run* (${timestamp} UTC)`];
+
+  if (actioned.length > 0) {
+    lines.push(`\n*Decisions processed (${actioned.length}):*`);
+    for (const a of actioned) lines.push(`  • ${a.name} → ${a.decision}`);
+  }
+
+  if (newlyBooked.length > 0) {
+    lines.push(`\n*Interviews booked (${newlyBooked.length}):*`);
+    for (const b of newlyBooked) lines.push(`  • ${b.name} — ${b.scheduledAt}`);
+  }
+
+  if (followUpsSent.length > 0) {
+    lines.push(`\n*Follow-ups sent (${followUpsSent.length}):*`);
+    for (const f of followUpsSent) lines.push(`  • ${f.name} (invite #${f.inviteCount})`);
+  }
+
+  if (neverResponded.length > 0) {
+    lines.push(`\n*Moved to Never Responded (${neverResponded.length}):*`);
+    for (const name of neverResponded) lines.push(`  • ${name}`);
+  }
+
+  if (humanReviewFlagged.length > 0) {
+    lines.push(`\n*Flagged for Human Review (${humanReviewFlagged.length}):*`);
+    for (const name of humanReviewFlagged) lines.push(`  • ${name}`);
+  }
+
+  if (actioned.length === 0 && newlyBooked.length === 0 && followUpsSent.length === 0 &&
+      neverResponded.length === 0 && humanReviewFlagged.length === 0) {
+    lines.push('\n_Nothing to act on._');
+  }
+
+  return lines.join('\n');
+}
+
 export function getGitCommitHash(): string {
   try {
     return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();

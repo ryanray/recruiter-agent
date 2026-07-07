@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { loadConfig } from './config.js';
-import { startFileLog } from './logger.js';
+import { startFileLog, formatActSummary } from './logger.js';
 import { screenApplicant } from './screening.js';
 import { scoreApplicant } from './scorer.js';
 import { Agent } from './agent.js';
@@ -29,8 +29,8 @@ const timeout = setTimeout(() => {
 }, config.run.timeout_minutes * 60 * 1000);
 
 try {
-  await agent.processPendingDecisions();
-  await agent.processBookedInterviews();
+  const { actioned } = await agent.processPendingDecisions();
+  const { newlyBooked } = await agent.processBookedInterviews();
   const { followUpsSent, neverResponded, humanReviewFlagged } = await agent.processFollowUps();
   clearTimeout(timeout);
   console.log(`[Act] Follow-ups sent: ${followUpsSent.length}`);
@@ -44,6 +44,7 @@ try {
     console.log(`[Act] Flagged for human review: ${humanReviewFlagged.join(', ')}`);
   }
   console.log('\n[Act] Complete.');
+  await slack.post(config.slack.recruiting_channel, formatActSummary({ actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged }));
 } catch (err) {
   clearTimeout(timeout);
   console.error('Fatal error:', err instanceof Error ? err.message : err);
