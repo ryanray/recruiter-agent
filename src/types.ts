@@ -108,6 +108,8 @@ export interface RunCandidateResult {
   location: string;
   experience: string;
   certifications: string;
+  score?: number;
+  tier?: string;
   reason?: string;
   unclearField?: string;
 }

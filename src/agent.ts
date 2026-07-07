@@ -198,6 +198,8 @@ export class Agent {
             location: screening.extractedData.location ?? '',
             experience: screening.extractedData.experienceTypes.join(', '),
             certifications: screening.extractedData.certifications.join(', '),
+            score: score.score,
+            tier: score.tier,
           });
           if (screening.isUrgent) {
             console.log(`[Agent] Strong candidate — will appear in run summary.`);
@@ -207,6 +209,8 @@ export class Agent {
             name: applicant.name,
             location: screening.extractedData.location ?? '',
             experience: '', certifications: '',
+            score: score.score,
+            tier: score.tier,
             reason: screening.reasons.join('; '),
           });
         } else {
@@ -214,6 +218,8 @@ export class Agent {
             name: applicant.name,
             location: screening.extractedData.location ?? '',
             experience: '', certifications: '',
+            score: score.score,
+            tier: score.tier,
             unclearField: screening.reasons.join('; '),
           });
           await this.slack.post(

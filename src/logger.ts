@@ -127,15 +127,24 @@ export function formatCandidateSummary(result: RunResult): string {
 
   if (result.passed.length > 0) {
     lines.push(`\n*Passed (${result.passed.length}):*`);
-    for (const c of result.passed) lines.push(`  ✓ ${c.name} — ${c.location}`);
+    for (const c of result.passed) {
+      const scoreStr = c.score != null ? `  ${c.score}/100 (${c.tier})` : '';
+      lines.push(`  ✓ ${c.name} — ${c.location}${scoreStr}`);
+    }
   }
   if (result.unsure.length > 0) {
     lines.push(`\n*Unsure — needs review (${result.unsure.length}):*`);
-    for (const c of result.unsure) lines.push(`  ? ${c.name} — ${c.unclearField}`);
+    for (const c of result.unsure) {
+      const scoreStr = c.score != null ? `  ${c.score}/100 (${c.tier})` : '';
+      lines.push(`  ? ${c.name} — ${c.unclearField}${scoreStr}`);
+    }
   }
   if (result.rejected.length > 0) {
     lines.push(`\n*Rejected (${result.rejected.length}):*`);
-    for (const c of result.rejected) lines.push(`  ✗ ${c.name} — ${c.reason}`);
+    for (const c of result.rejected) {
+      const scoreStr = c.score != null ? `  ${c.score}/100 (${c.tier})` : '';
+      lines.push(`  ✗ ${c.name} — ${c.reason}${scoreStr}`);
+    }
   }
   if (result.humanReviewFlagged.length > 0) {
     lines.push(`\n*Flagged for Human Review (${result.humanReviewFlagged.length}):*`);
