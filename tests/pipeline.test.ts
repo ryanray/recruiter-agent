@@ -154,15 +154,14 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(slack.messages[0].message).toContain('Review needed');
   });
 
-  it('urgent PASS candidate posts Slack alert and still goes to Awaiting Review', async () => {
+  it('urgent PASS candidate still goes to Awaiting Review without a separate Slack alert', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(true), async () => defaultScore(), config);
 
     await agent.evaluateCandidates(since, new Set(), () => {});
 
     expect(sheets.tabs['Active'][0].status).toBe('Awaiting Review');
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Strong candidate');
+    expect(slack.messages).toHaveLength(0);
   });
 
   it('skips candidate who applied to a second job when already on the sheet by name', async () => {
