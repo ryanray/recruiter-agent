@@ -200,11 +200,7 @@ export class Agent {
             certifications: screening.extractedData.certifications.join(', '),
           });
           if (screening.isUrgent) {
-            console.log(`[Agent] Strong candidate — posting Slack alert.`);
-            await this.slack.post(
-              this.config.slack.recruiting_channel,
-              `🚨 *Strong candidate:* ${applicant.name} — CNA + ${screening.extractedData.yearsExperience}yr experience\n<${applicant.indeedProfileUrl}|View in Indeed>`
-            );
+            console.log(`[Agent] Strong candidate — will appear in run summary.`);
           }
         } else if (screening.decision === 'FAIL') {
           result.rejected.push({
