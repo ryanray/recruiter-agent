@@ -31,6 +31,7 @@ export class Agent {
       pdfFailures: [], scoreFailures: [],
       followUpsSent: [], neverResponded: [],
       humanReviewFlagged: [],
+      autoRejected: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
         required: this.config.screening.required,
@@ -189,10 +190,27 @@ export class Agent {
         row.scoreConcerns = score.concerns;
         row.interviewQuestions = score.interviewQuestions;
 
+        const autoRejectThreshold = this.config.scoring?.auto_reject_below ?? null;
+        const autoReject = !autoApprove && autoRejectThreshold !== null && score.score < autoRejectThreshold;
+        if (autoReject) {
+          row.humanDecision = 'Reject';
+          row.notes = `[AUTO-REJECTED: score ${score.score}/100 below threshold of ${autoRejectThreshold}] ${row.notes}`.trim();
+          console.log(`[Agent] Auto-rejecting ${applicant.name} (score: ${score.score}/100 < threshold ${autoRejectThreshold}).`);
+        }
+
         console.log(`[Agent] Adding to Active sheet...`);
         await this.sheets.addCandidate('Active', row);
 
-        if (screening.decision === 'PASS') {
+        if (autoReject) {
+          result.autoRejected.push({
+            name: applicant.name,
+            location: screening.extractedData.location ?? '',
+            experience: '', certifications: '',
+            score: score.score,
+            tier: score.tier,
+            reason: `score ${score.score}/100 below threshold of ${autoRejectThreshold}`,
+          });
+        } else if (screening.decision === 'PASS') {
           result.passed.push({
             name: applicant.name,
             location: screening.extractedData.location ?? '',

@@ -12,6 +12,7 @@
     "act": "npx tsx src/run-act.ts",
     "seed-previously-contacted": "npx tsx src/scripts/seed-previously-contacted.ts",
     "add-score-columns": "npx tsx src/scripts/add-score-columns.ts",
+    "backfill-auto-reject": "npx tsx src/scripts/backfill-auto-reject.ts",
     "create-docs": "npx tsx src/scripts/create-docs.ts",
     "announce-update": "npx tsx src/scripts/announce-update.ts",
     "test": "vitest run",

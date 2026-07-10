@@ -15,9 +15,9 @@ screening:
   disqualifying: []
 
 scheduling:
-  cold_candidate_days: 3
+  cold_candidate_days: 7
   previously_contacted_lookback_days: 365
-  follow_up_days: 3
+  follow_up_days: 7
   hiring_team_emails: ["rray@firstlighthomecare.com", "jray@firstlighthomecare.com", "ashumway@firstlighthomecare.com", "awhiting@firstlighthomecare.com"]  # Add team member emails to include on phone screen invites
 
 messages:
@@ -31,12 +31,15 @@ google_drive:
   checkback_folder_id: "1qSMovk7JilLTJC3iscz5M8GYdRBMXnZj"
   rejected_folder_id: "1Sf0m8rRklyNxkOT-OVwO1l9_H5i47aMJ"
   never_responded_folder_id: "1NTT7LwX1ZhPVAxAJRKOIks9cyz0F5VK1"
-  active_employees_folder_id: ""  # Fill with the Google Drive folder ID for active employees
+  active_employees_folder_id: "1DXb0kWKOIO3HNClPEDEAkIgce6QENkff"  # Fill with the Google Drive folder ID for HIRED active employees
   interview_template_sheet_id: "1XE-v4MQom3PJfkfzk0cIdOYfOMYp3Qlo"
   run_log_doc_id: "1ACCixPnObKbbEFtocylVsON87TlNkySrX5m27e8q8DE"
 
 google_sheets:
   tracker_spreadsheet_id: "1PvFN-O9ULGu-uyLLoeYtXZUjeM_3KyFCWb862gxsXQk"
+
+scoring:
+  auto_reject_below: 40  # Candidates scoring below this are automatically rejected. Set to null to disable.
 
 slack:
   recruiting_channel: "#recruiting-private"

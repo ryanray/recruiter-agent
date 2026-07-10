@@ -150,6 +150,12 @@ export function formatCandidateSummary(result: RunResult): string {
     lines.push(`\n*Flagged for Human Review (${result.humanReviewFlagged.length}):*`);
     for (const name of result.humanReviewFlagged) lines.push(`  ⚠️ ${name}`);
   }
+  if (result.autoRejected.length > 0) {
+    lines.push(`\n*Auto-rejected — score below threshold (${result.autoRejected.length}):*`);
+    for (const c of result.autoRejected) {
+      lines.push(`  ✗ ${c.name} — ${c.score}/100 (${c.tier})`);
+    }
+  }
   if (result.errors.length > 0) {
     lines.push(`\n*Errors (${result.errors.length}):*`);
     for (const e of result.errors) lines.push(`  ✗ ${e.description}: ${e.reason}`);

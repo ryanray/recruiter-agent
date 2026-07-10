@@ -148,6 +148,7 @@ export interface RunResult {
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
   humanReviewFlagged: string[];
+  autoRejected: RunCandidateResult[];
   configVersion: string;
   screeningCriteria: {
     required: string[];
@@ -234,6 +235,9 @@ export interface Config {
     active_employees_folder_id: string;
     interview_template_sheet_id: string;
     run_log_doc_id: string;
+  };
+  scoring: {
+    auto_reject_below: number | null;
   };
   google_sheets: {
     tracker_spreadsheet_id: string;
