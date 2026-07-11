@@ -22,8 +22,22 @@ export class DriveService implements DriveAdapter {
 
   async moveFolder(folderId: string, targetParentId: string): Promise<void> {
     const drive = google.drive({ version: 'v3', auth: getGoogleAuth() });
-    const file = await drive.files.get({ fileId: folderId, fields: 'parents', supportsAllDrives: true });
+    const file = await drive.files.get({ fileId: folderId, fields: 'id, parents, driveId', supportsAllDrives: true });
     const previousParents = (file.data.parents ?? []).join(',');
+    const sourceDriveId = file.data.driveId ?? '(My Drive)';
+    console.log(`[Drive] moveFolder: source=${folderId} driveId=${sourceDriveId} parents=${previousParents || '(none)'} → target=${targetParentId}`);
+
+    let targetDriveId = '(unknown)';
+    try {
+      const target = await drive.files.get({ fileId: targetParentId, fields: 'id, driveId', supportsAllDrives: true });
+      targetDriveId = target.data.driveId ?? '(My Drive)';
+    } catch { /* non-fatal */ }
+    console.log(`[Drive] moveFolder: target folder driveId=${targetDriveId}`);
+
+    if (!previousParents) {
+      console.warn(`[Drive] moveFolder: could not determine current parent for ${folderId} — move may fail`);
+    }
+
     await drive.files.update({
       fileId: folderId,
       addParents: targetParentId,
