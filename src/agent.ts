@@ -523,7 +523,7 @@ export class Agent {
             try {
               await this.drive.moveFolder(folderId, this.config.google_drive.never_responded_folder_id);
             } catch (folderErr) {
-              console.warn(`[Agent] Could not move Drive folder for ${candidate.name} — folder may need to be moved manually: ${folderErr instanceof Error ? folderErr.message : folderErr}`);
+              console.warn(`[Agent] Could not move Drive folder for ${candidate.name} (${folderId}) — folder may need to be moved manually: ${folderErr instanceof Error ? folderErr.message : folderErr}`);
             }
           }
           console.log(`[Agent] Moving row to Never Responded tab...`);
