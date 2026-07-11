@@ -520,7 +520,11 @@ export class Agent {
           console.log(`[Agent] ${candidate.name} — inviteCount=${inviteCount} — no response after 3 invites, moving to Never Responded.`);
           if (folderId) {
             console.log(`[Agent] Moving Drive folder to Never Responded...`);
-            await this.drive.moveFolder(folderId, this.config.google_drive.never_responded_folder_id);
+            try {
+              await this.drive.moveFolder(folderId, this.config.google_drive.never_responded_folder_id);
+            } catch (folderErr) {
+              console.warn(`[Agent] Could not move Drive folder for ${candidate.name} — folder may need to be moved manually: ${folderErr instanceof Error ? folderErr.message : folderErr}`);
+            }
           }
           console.log(`[Agent] Moving row to Never Responded tab...`);
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Never Responded');
