@@ -29,6 +29,8 @@ const config: Config = {
     interview_template_sheet_id: 'template-id',
     run_log_doc_id: 'log-id',
   },
+  scoring: { auto_reject_below: 40 },
+  interview_results: { in_person_reminder_days: 3 },
   google_sheets: { tracker_spreadsheet_id: 'sheet-id' },
   slack: { recruiting_channel: '#recruiting' },
   indeed: { job_ids: ['test-job-1'] },
