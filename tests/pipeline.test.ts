@@ -948,6 +948,189 @@ describe('Agent — hire decision', () => {
   });
 });
 
+describe('Agent.processInterviewResults', () => {
+  let indeed: FakeIndeedAdapter;
+  let sheets: FakeSheetsAdapter;
+  let drive: FakeDriveAdapter;
+  let slack: FakeSlackAdapter;
+  let agent: Agent;
+
+  beforeEach(() => {
+    indeed = new FakeIndeedAdapter();
+    sheets = new FakeSheetsAdapter();
+    drive = new FakeDriveAdapter();
+    slack = new FakeSlackAdapter();
+    agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+  });
+
+  it('phone Passed: updates status to In-Person Interview Scheduled and sets inPersonInterviewScheduledAt', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'Passed',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    const candidate = sheets.tabs['Active'].find(c => c.name === 'Jane Doe')!;
+    expect(candidate.status).toBe('In-Person Interview Scheduled');
+    expect(candidate.inPersonInterviewScheduledAt).toBe(new Date().toISOString().slice(0, 10));
+    expect(processed).toHaveLength(1);
+    expect(processed[0]).toEqual({ name: 'Jane Doe', result: 'Passed', action: 'In-Person Interview Scheduled' });
+  });
+
+  it('phone Failed: sets humanDecision to Reject for processPendingDecisions to handle', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'Failed',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    const candidate = sheets.tabs['Active'].find(c => c.name === 'Jane Doe')!;
+    expect(candidate.humanDecision).toBe('Reject');
+    expect(candidate.status).toBe('Interview Scheduled');
+    expect(processed[0].result).toBe('Failed');
+  });
+
+  it('phone No-Show: sets humanDecision to Reject', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'No-Show',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Reject');
+    expect(processed[0].result).toBe('No-Show');
+  });
+
+  it('in-person Hired: sets humanDecision to Hire', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewResult: 'Hired',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Hire');
+    expect(processed[0]).toEqual({ name: 'Jane Doe', result: 'Hired', action: 'Set humanDecision=Hire' });
+  });
+
+  it('in-person Rejected: sets humanDecision to Reject', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewResult: 'Rejected',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Reject');
+  });
+
+  it('in-person No-Show: sets humanDecision to Reject', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewResult: 'No-Show',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Reject');
+  });
+
+  it('skips candidate with phoneInterviewResult but NOT at Interview Scheduled status', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'Awaiting Review',
+      phoneInterviewResult: 'Passed',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(processed).toHaveLength(0);
+    expect(sheets.tabs['Active'][0].status).toBe('Awaiting Review');
+  });
+
+  it('skips candidate with no phoneInterviewResult or inPersonInterviewResult set', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'Interview Scheduled',
+      phoneInterviewResult: '',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(processed).toHaveLength(0);
+  });
+
+  it('returns inPersonReminders for candidates past the reminder deadline', async () => {
+    const oldDate = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewScheduledAt: oldDate,
+      inPersonInterviewResult: '',
+    }));
+
+    const { inPersonReminders } = await agent.processInterviewResults();
+
+    expect(inPersonReminders).toContain('Jane Doe');
+  });
+
+  it('does not include in inPersonReminders if within reminder days', async () => {
+    const recentDate = new Date(Date.now() - 1 * 86_400_000).toISOString().slice(0, 10);
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewScheduledAt: recentDate,
+      inPersonInterviewResult: '',
+    }));
+
+    const { inPersonReminders } = await agent.processInterviewResults();
+
+    expect(inPersonReminders).toHaveLength(0);
+  });
+
+  it('does not include in inPersonReminders if inPersonInterviewResult is already set', async () => {
+    const oldDate = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewScheduledAt: oldDate,
+      inPersonInterviewResult: 'Hired',
+    }));
+
+    const { inPersonReminders } = await agent.processInterviewResults();
+
+    expect(inPersonReminders).toHaveLength(0);
+  });
+
+  it('processes multiple candidates independently', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'Jane Doe', indeedId: 'app-1',
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'Passed',
+    }));
+    sheets.tabs['Active'].push(makeCandidate({
+      name: 'John Smith', indeedId: 'app-2',
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'Failed',
+    }));
+
+    const { processed } = await agent.processInterviewResults();
+
+    expect(processed).toHaveLength(2);
+    expect(sheets.tabs['Active'].find(c => c.name === 'Jane Doe')!.status).toBe('In-Person Interview Scheduled');
+    expect(sheets.tabs['Active'].find(c => c.name === 'John Smith')!.humanDecision).toBe('Reject');
+  });
+});
+
 describe('FakeSheetsAdapter new methods', () => {
   let sheets: FakeSheetsAdapter;
 
