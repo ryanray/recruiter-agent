@@ -24,6 +24,17 @@ for (const tab of CANDIDATE_TABS) {
   }
   console.log(`Processing tab "${tab}" (sheetId=${sheetId})...`);
 
+  // Idempotency guard: check if columns already exist
+  const check = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${tab}'!N1`,
+  });
+  const n1 = (check.data.values?.[0]?.[0] as string | undefined) ?? '';
+  if (n1 === 'Phone Interview Result') {
+    console.warn(`Tab "${tab}" already has interview result columns — skipping (idempotency guard).`);
+    continue;
+  }
+
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
@@ -52,9 +63,9 @@ for (const tab of CANDIDATE_TABS) {
     requestBody: {
       valueInputOption: 'USER_ENTERED',
       data: [
-        { range: `${tab}!N1`, values: [['Phone Interview Result']] },
-        { range: `${tab}!O1`, values: [['In-Person Interview Result']] },
-        { range: `${tab}!AA1`, values: [['In-Person Interview Scheduled At']] },
+        { range: `'${tab}'!N1`, values: [['Phone Interview Result']] },
+        { range: `'${tab}'!O1`, values: [['In-Person Interview Result']] },
+        { range: `'${tab}'!AA1`, values: [['In-Person Interview Scheduled At']] },
       ],
     },
   });
