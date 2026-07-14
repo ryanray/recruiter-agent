@@ -1,6 +1,6 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType,
 } from './types.js';
 import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
@@ -99,6 +99,7 @@ export class Agent {
             createdAt: todayMMDDYYYY(),
           };
           await this.sheets.addCandidate('Active', row);
+          await this.safeLogEvent(applicant.name, 'applicant_added');
           await this.slack.post(
             this.config.slack.recruiting_channel,
             `⚠️ *Human review needed:* ${applicant.name} has applied to ${profileFetchResult.otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${applicant.indeedProfileUrl}|View in Indeed>`
@@ -200,6 +201,7 @@ export class Agent {
 
         console.log(`[Agent] Adding to Active sheet...`);
         await this.sheets.addCandidate('Active', row);
+        await this.safeLogEvent(applicant.name, 'applicant_added');
 
         if (autoReject) {
           result.autoRejected.push({
@@ -306,6 +308,7 @@ export class Agent {
           await this.sheets.updateCandidateStatus(
             candidate.name, 'Screened - Invite Sent', { lastContact: today(), inviteSentAt: today(), inviteCount: '1' }
           );
+          await this.safeLogEvent(candidate.name, 'invite_sent');
 
           console.log(`[Agent] Recording ${candidate.name} in Previously Contacted tab (approved).`);
           await this.sheets.addToPreviouslyContacted({
@@ -412,6 +415,7 @@ export class Agent {
           console.log(`[Agent] Moving row to Hired tab...`);
           await this.sheets.updateCandidateStatus(candidate.name, 'Onboarding');
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Hired');
+          await this.safeLogEvent(candidate.name, 'hired');
 
           // Step 5: Add to Tracker
           console.log(`[Agent] Adding ${candidate.name} to Tracker...`);
@@ -498,6 +502,9 @@ export class Agent {
               candidate.status,
               { humanDecision: 'Reject' }
             );
+            if (phoneResult === 'No-Show') {
+              await this.safeLogEvent(candidate.name, 'phone_no_show');
+            }
             processed.push({ name: candidate.name, result: phoneResult, action: 'Set humanDecision=Reject' });
           }
         }
@@ -518,6 +525,9 @@ export class Agent {
               candidate.status,
               { humanDecision: 'Reject' }
             );
+            if (inPersonResult === 'No-Show') {
+              await this.safeLogEvent(candidate.name, 'in_person_no_show');
+            }
             processed.push({ name: candidate.name, result: inPersonResult, action: 'Set humanDecision=Reject' });
           }
         }
@@ -624,6 +634,7 @@ export class Agent {
         await this.sheets.updateCandidateStatus(
           candidate.name, 'Screened - Invite Sent', { lastContact: today(), inviteCount: String(nextCount) }
         );
+        await this.safeLogEvent(candidate.name, 'follow_up_sent', String(inviteCount));
 
         followUpsSent.push({ name: candidate.name, inviteCount: nextCount });
         console.log(`[Agent] Follow-up ${inviteCount} sent to ${candidate.name} (inviteCount now ${nextCount}).`);
@@ -644,6 +655,14 @@ export class Agent {
     const result = await this.evaluateCandidates(since, processedIds, markProcessed);
     await this.processPendingDecisions();
     return result;
+  }
+
+  private async safeLogEvent(candidate: string, event: EventType, detail?: string): Promise<void> {
+    try {
+      await this.sheets.logEvent(candidate, event, detail);
+    } catch (err) {
+      console.warn(`[Agent] Failed to log event ${event} for ${candidate}: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   private buildRow(

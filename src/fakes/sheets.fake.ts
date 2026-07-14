@@ -1,4 +1,4 @@
-import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry, OfferInfo } from '../types.js';
+import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry, OfferInfo, EventType } from '../types.js';
 
 export class FakeSheetsAdapter implements SheetsAdapter {
   tabs: Record<string, CandidateRow[]> = {
@@ -8,6 +8,7 @@ export class FakeSheetsAdapter implements SheetsAdapter {
   previouslyContacted: PreviouslyContactedEntry[] = [];
   offerInfoBySpreadsheetId: Map<string, OfferInfo> = new Map();
   trackerRows: { lastName: string; firstName: string; startDate: string }[] = [];
+  events: { date: string; candidate: string; event: EventType; detail: string }[] = [];
 
   async addCandidate(tab: string, candidate: CandidateRow): Promise<void> {
     if (!this.tabs[tab]) this.tabs[tab] = [];
@@ -78,5 +79,14 @@ export class FakeSheetsAdapter implements SheetsAdapter {
 
   async addToTracker(lastName: string, firstName: string, startDate: string): Promise<void> {
     this.trackerRows.push({ lastName, firstName, startDate });
+  }
+
+  async logEvent(candidate: string, event: EventType, detail?: string): Promise<void> {
+    this.events.push({
+      date: new Date().toISOString().slice(0, 10),
+      candidate,
+      event,
+      detail: detail ?? '',
+    });
   }
 }
