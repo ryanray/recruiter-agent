@@ -110,8 +110,10 @@ header may be present). This makes double-backfill impossible.
 
 **Parsing:** for each `logs/*.log` file:
 
-- Event date = the log filename timestamp (`2026-06-08T06-01-41-start.log` is
-  a UTC instant), converted to the local (America/Denver) calendar date.
+- Event date = the UTC date from the log filename
+  (`2026-06-08T06-01-41-start.log` → `2026-06-08`). This matches what the live
+  `logEvent` would have written during that run, since the codebase's `today()`
+  helper is UTC-based (`toISOString().slice(0, 10)`).
 - Extracted events:
 
 | Event | Line pattern | Name extraction |
