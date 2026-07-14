@@ -29,6 +29,7 @@ const REQUIRED_FIELDS: [string, string][] = [
   ['google_drive', 'run_log_doc_id'],
   ['google_sheets', 'tracker_spreadsheet_id'],
   ['slack', 'recruiting_channel'],
+  ['interview_results', 'in_person_reminder_days'],
 ];
 
 function validateConfig(config: Config): void {

@@ -530,7 +530,7 @@ export class Agent {
           const daysSince = Math.floor(
             (Date.now() - new Date(candidate.inPersonInterviewScheduledAt).getTime()) / 86_400_000
           );
-          if (daysSince >= reminderDays) {
+          if (daysSince > reminderDays) {
             inPersonReminders.push(candidate.name);
           }
         }

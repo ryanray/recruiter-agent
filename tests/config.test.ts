@@ -36,6 +36,8 @@ google_drive:
   run_log_doc_id: "log-id"
 google_sheets:
   tracker_spreadsheet_id: "sheet-id"
+interview_results:
+  in_person_reminder_days: 3
 slack:
   recruiting_channel: "#recruiting"
 indeed:

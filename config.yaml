@@ -41,6 +41,9 @@ google_sheets:
 scoring:
   auto_reject_below: 40  # Candidates scoring below this are automatically rejected. Set to null to disable.
 
+interview_results:
+  in_person_reminder_days: 3  # Days after phone pass before reminding team to schedule in-person
+
 slack:
   recruiting_channel: "#recruiting-private"
 
