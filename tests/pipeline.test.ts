@@ -1131,6 +1131,104 @@ describe('Agent.processInterviewResults', () => {
   });
 });
 
+describe('Agent event logging', () => {
+  let indeed: FakeIndeedAdapter;
+  let sheets: FakeSheetsAdapter;
+  let drive: FakeDriveAdapter;
+  let slack: FakeSlackAdapter;
+  let agent: Agent;
+
+  beforeEach(() => {
+    indeed = new FakeIndeedAdapter();
+    sheets = new FakeSheetsAdapter();
+    drive = new FakeDriveAdapter();
+    slack = new FakeSlackAdapter();
+    agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
+  });
+
+  it('logs applicant_added when a screened applicant is added to the sheet', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    await agent.evaluateCandidates(new Date('2026-01-01'), new Set(), () => {});
+    expect(sheets.events.filter(e => e.event === 'applicant_added')).toEqual([
+      expect.objectContaining({ candidate: 'Jane Doe', event: 'applicant_added', detail: '' }),
+    ]);
+  });
+
+  it('logs applicant_added when a multi-job applicant is flagged for human review', async () => {
+    indeed.seedApplicants([makeApplicant()]);
+    indeed.multiJobApplicantIds.add('app-1');
+    await agent.evaluateCandidates(new Date('2026-01-01'), new Set(), () => {});
+    expect(sheets.events.filter(e => e.event === 'applicant_added')).toHaveLength(1);
+  });
+
+  it('logs invite_sent when an approved candidate gets the initial invite', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ humanDecision: 'Approve' }));
+    await agent.processPendingDecisions();
+    expect(sheets.events.filter(e => e.event === 'invite_sent')).toEqual([
+      expect.objectContaining({ candidate: 'Jane Doe', detail: '' }),
+    ]);
+  });
+
+  it('logs follow_up_sent with the follow-up number as detail', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      status: 'Screened - Invite Sent',
+      lastContact: '2026-01-01',
+      inviteCount: '1',
+    }));
+    await agent.processFollowUps();
+    expect(sheets.events.filter(e => e.event === 'follow_up_sent')).toEqual([
+      expect.objectContaining({ candidate: 'Jane Doe', detail: '1' }),
+    ]);
+  });
+
+  it('logs phone_no_show when a phone No-Show result is processed', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'No-Show',
+    }));
+    await agent.processInterviewResults();
+    expect(sheets.events.filter(e => e.event === 'phone_no_show')).toHaveLength(1);
+  });
+
+  it('does NOT log phone_no_show for a phone Failed result', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'Failed',
+    }));
+    await agent.processInterviewResults();
+    expect(sheets.events).toHaveLength(0);
+  });
+
+  it('logs in_person_no_show when an in-person No-Show result is processed', async () => {
+    sheets.tabs['Active'].push(makeCandidate({
+      status: 'In-Person Interview Scheduled',
+      inPersonInterviewResult: 'No-Show',
+    }));
+    await agent.processInterviewResults();
+    expect(sheets.events.filter(e => e.event === 'in_person_no_show')).toHaveLength(1);
+  });
+
+  it('logs hired when a candidate is moved to the Hired tab', async () => {
+    sheets.tabs['Active'].push(makeCandidate({ humanDecision: 'Hire', driveFolder: '' }));
+    await agent.processPendingDecisions();
+    expect(sheets.events.filter(e => e.event === 'hired')).toEqual([
+      expect.objectContaining({ candidate: 'Jane Doe' }),
+    ]);
+    expect(sheets.tabs['Hired']).toHaveLength(1);
+  });
+
+  it('a throwing logEvent does not break the flow', async () => {
+    sheets.logEvent = async () => { throw new Error('boom'); };
+    sheets.tabs['Active'].push(makeCandidate({
+      status: 'Interview Scheduled',
+      phoneInterviewResult: 'No-Show',
+    }));
+    const { processed } = await agent.processInterviewResults();
+    expect(processed).toHaveLength(1);
+    expect(sheets.tabs['Active'][0].humanDecision).toBe('Reject');
+  });
+});
+
 describe('FakeSheetsAdapter new methods', () => {
   let sheets: FakeSheetsAdapter;
 
