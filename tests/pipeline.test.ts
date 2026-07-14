@@ -1136,6 +1136,22 @@ describe('FakeSheetsAdapter new methods', () => {
 
   beforeEach(() => { sheets = new FakeSheetsAdapter(); });
 
+  it('logEvent records an event with today\'s date and empty detail by default', async () => {
+    await sheets.logEvent('Jane Doe', 'invite_sent');
+    expect(sheets.events).toHaveLength(1);
+    expect(sheets.events[0]).toEqual({
+      date: new Date().toISOString().slice(0, 10),
+      candidate: 'Jane Doe',
+      event: 'invite_sent',
+      detail: '',
+    });
+  });
+
+  it('logEvent records the detail when provided', async () => {
+    await sheets.logEvent('Jane Doe', 'follow_up_sent', '2');
+    expect(sheets.events[0].detail).toBe('2');
+  });
+
   it('getEvaluatedCandidates returns indeedIds and names from Active, Rejected, and Checkback Later', async () => {
     sheets.tabs['Active'].push(makeCandidate({ indeedId: 'id-1', name: 'Jane Doe' }));
     sheets.tabs['Rejected'].push(makeCandidate({ indeedId: 'id-2', name: 'John Smith' }));

@@ -46,6 +46,14 @@ export type CandidateStatus =
   | 'Onboarding'
   | 'Human Review';
 
+export type EventType =
+  | 'applicant_added'
+  | 'invite_sent'
+  | 'follow_up_sent'
+  | 'phone_no_show'
+  | 'in_person_no_show'
+  | 'hired';
+
 export interface CandidateRow {
   name: string;
   phone: string;
@@ -187,6 +195,7 @@ export interface SheetsAdapter {
   addToPreviouslyContacted(entry: PreviouslyContactedEntry): Promise<void>;
   readOfferInfo(spreadsheetId: string): Promise<OfferInfo>;
   addToTracker(lastName: string, firstName: string, startDate: string): Promise<void>;
+  logEvent(candidate: string, event: EventType, detail?: string): Promise<void>;
 }
 
 export interface DriveAdapter {

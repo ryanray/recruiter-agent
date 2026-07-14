@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../google-auth.js';
-import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry, OfferInfo } from '../types.js';
+import type { SheetsAdapter, CandidateRow, CandidateStatus, PreviouslyContactedEntry, OfferInfo, EventType } from '../types.js';
 
 const COLUMNS = [
   'name','phone','email','indeedUrl','indeedId','location',
@@ -221,6 +221,17 @@ export class SheetsService implements SheetsAdapter {
       range: 'Tracker!A:D',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[lastName, firstName, 'Onboarding', startDate]] },
+    });
+  }
+
+  async logEvent(candidate: string, event: EventType, detail?: string): Promise<void> {
+    const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
+    const date = new Date().toISOString().slice(0, 10);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: this.spreadsheetId,
+      range: 'Events!A:D',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[date, candidate, event, detail ?? '']] },
     });
   }
 }
