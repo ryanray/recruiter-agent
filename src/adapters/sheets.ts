@@ -226,11 +226,12 @@ export class SheetsService implements SheetsAdapter {
 
   async logEvent(candidate: string, event: EventType, detail?: string): Promise<void> {
     const sheets = google.sheets({ version: 'v4', auth: getGoogleAuth() });
+    console.log(`[Sheets] Logging event ${event} for ${candidate}...`);
     const date = new Date().toISOString().slice(0, 10);
     await sheets.spreadsheets.values.append({
       spreadsheetId: this.spreadsheetId,
       range: 'Events!A:D',
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       requestBody: { values: [[date, candidate, event, detail ?? '']] },
     });
   }

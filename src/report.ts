@@ -28,9 +28,9 @@ export function countEvents(rows: string[][], startDate: string, endDate: string
     phoneNoShows: 0, inPersonNoShows: 0, hired: 0,
   };
   for (const row of rows) {
-    const date = (row[0] ?? '').trim();
-    const event = (row[2] ?? '').trim();
-    if (!date || date < startDate || date > endDate) continue;
+    const date = String(row[0] ?? '').trim();
+    const event = String(row[2] ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < startDate || date > endDate) continue;
     switch (event) {
       case 'applicant_added': counts.applicantsAdded++; break;
       case 'invite_sent': counts.invitesSent++; break;

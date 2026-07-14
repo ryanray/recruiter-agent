@@ -17,9 +17,26 @@ if (exists) {
   process.exit(0);
 }
 
-await sheets.spreadsheets.batchUpdate({
+const addReply = await sheets.spreadsheets.batchUpdate({
   spreadsheetId,
   requestBody: { requests: [{ addSheet: { properties: { title: 'Events' } } }] },
+});
+
+const sheetId = addReply.data.replies?.[0]?.addSheet?.properties?.sheetId;
+if (sheetId == null) throw new Error('addSheet reply did not include a sheetId');
+
+// Format column A as plain text so Sheets never coerces YYYY-MM-DD date strings.
+await sheets.spreadsheets.batchUpdate({
+  spreadsheetId,
+  requestBody: {
+    requests: [{
+      repeatCell: {
+        range: { sheetId, startColumnIndex: 0, endColumnIndex: 1 },
+        cell: { userEnteredFormat: { numberFormat: { type: 'TEXT' } } },
+        fields: 'userEnteredFormat.numberFormat',
+      },
+    }],
+  },
 });
 
 await sheets.spreadsheets.values.update({
@@ -29,4 +46,4 @@ await sheets.spreadsheets.values.update({
   requestBody: { values: [['Date', 'Candidate', 'Event', 'Detail']] },
 });
 
-console.log('✓ Created Events tab with header row.');
+console.log('✓ Created Events tab with header row (column A formatted as plain text).');

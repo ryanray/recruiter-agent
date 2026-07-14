@@ -57,6 +57,37 @@ describe('countEvents', () => {
       phoneNoShows: 0, inPersonNoShows: 0, hired: 0,
     });
   });
+
+  it('skips rows with locale-formatted dates (e.g. 7/6/2026) — ISO format required', () => {
+    // Sheets can return locale-formatted dates when valueInputOption was USER_ENTERED.
+    // With the ISO-format guard, these must be skipped, not miscounted.
+    // Row with a Sheets date serial number (number, not string) must also not throw.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mixedRows: any = [
+      ['7/6/2026', 'Alice', 'applicant_added', ''],   // locale M/D/YYYY — skip
+      [46578, 'Bob', 'invite_sent', ''],               // Sheets serial number — must not throw, skip
+      ['2026-07-06', 'Carol', 'applicant_added', ''], // valid ISO — count
+    ];
+    expect(() => countEvents(mixedRows, '2026-07-01', '2026-07-31')).not.toThrow();
+    const counts = countEvents(mixedRows, '2026-07-01', '2026-07-31');
+    // Only Carol's ISO row should count
+    expect(counts.applicantsAdded).toBe(1);
+    expect(counts.invitesSent).toBe(0);
+  });
+
+  it('does not throw and skips rows containing null cells in date or event columns', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nullRows: any = [
+      [null, 'X', 'applicant_added', ''],  // null date → skipped
+      [null, null, null, null],             // all null → skipped
+    ];
+    expect(() => countEvents(nullRows, '2026-07-01', '2026-07-31')).not.toThrow();
+    const counts = countEvents(nullRows, '2026-07-01', '2026-07-31');
+    expect(counts).toEqual({
+      applicantsAdded: 0, invitesSent: 0, followUpsSent: 0,
+      phoneNoShows: 0, inPersonNoShows: 0, hired: 0,
+    });
+  });
 });
 
 describe('formatWeeklyReport', () => {

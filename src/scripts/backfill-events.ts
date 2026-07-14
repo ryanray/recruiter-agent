@@ -48,7 +48,7 @@ if (events.length === 0) {
 await sheets.spreadsheets.values.append({
   spreadsheetId,
   range: 'Events!A:D',
-  valueInputOption: 'USER_ENTERED',
+  valueInputOption: 'RAW',
   requestBody: { values: events.map(e => [e.date, e.candidate, e.event, e.detail]) },
 });
 
