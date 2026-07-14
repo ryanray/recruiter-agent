@@ -17,6 +17,7 @@
     "announce-update": "npx tsx src/scripts/announce-update.ts",
     "add-interview-result-columns": "npx tsx src/scripts/add-interview-result-columns.ts",
     "add-events-tab": "npx tsx src/scripts/add-events-tab.ts",
+    "weekly-report": "npx tsx src/scripts/weekly-report.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
