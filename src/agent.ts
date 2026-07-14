@@ -480,8 +480,9 @@ export class Agent {
       try {
         const phoneResult = (candidate.phoneInterviewResult ?? '').trim();
         const inPersonResult = (candidate.inPersonInterviewResult ?? '').trim();
+        const isBlank = (v: string) => !v || v.toLowerCase() === 'none';
 
-        if (candidate.status === 'Interview Scheduled' && phoneResult) {
+        if (candidate.status === 'Interview Scheduled' && !isBlank(phoneResult)) {
           if (phoneResult === 'Passed') {
             console.log(`[Agent] ${candidate.name} — phone interview Passed → In-Person Interview Scheduled`);
             await this.sheets.updateCandidateStatus(
@@ -501,7 +502,7 @@ export class Agent {
           }
         }
 
-        if (candidate.status === 'In-Person Interview Scheduled' && inPersonResult) {
+        if (candidate.status === 'In-Person Interview Scheduled' && !isBlank(inPersonResult)) {
           if (inPersonResult === 'Hired') {
             console.log(`[Agent] ${candidate.name} — in-person interview Hired → queuing Hire`);
             await this.sheets.updateCandidateStatus(
@@ -524,7 +525,7 @@ export class Agent {
         // Reminder check: in-person stage started but no result yet and deadline has passed
         if (
           candidate.status === 'In-Person Interview Scheduled' &&
-          !inPersonResult &&
+          isBlank(inPersonResult) &&
           candidate.inPersonInterviewScheduledAt
         ) {
           const daysSince = Math.floor(
