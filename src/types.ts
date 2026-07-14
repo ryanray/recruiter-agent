@@ -38,6 +38,7 @@ export type CandidateStatus =
   | 'Awaiting Review'
   | 'Screened - Invite Sent'
   | 'Interview Scheduled'
+  | 'In-Person Interview Scheduled'
   | 'Cold'
   | 'UNSURE'
   | 'Rejected'
@@ -59,6 +60,8 @@ export interface CandidateRow {
   lastContact: string;
   driveFolder?: string;
   humanDecision: string;
+  phoneInterviewResult?: string;       // "Passed" | "Failed" | "No-Show" | ""
+  inPersonInterviewResult?: string;    // "Hired" | "Rejected" | "No-Show" | ""
   notes: string;
   score?: string;
   scoreRecommendation?: string;
@@ -70,6 +73,7 @@ export interface CandidateRow {
   inviteSentAt?: string;
   interviewScheduledAt?: string;
   inviteCount?: string;
+  inPersonInterviewScheduledAt?: string;  // YYYY-MM-DD, set by Chandler when phone passes
   createdAt?: string;
 }
 
@@ -238,6 +242,9 @@ export interface Config {
   };
   scoring: {
     auto_reject_below: number | null;
+  };
+  interview_results: {
+    in_person_reminder_days: number;
   };
   google_sheets: {
     tracker_spreadsheet_id: string;

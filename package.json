@@ -15,6 +15,7 @@
     "backfill-auto-reject": "npx tsx src/scripts/backfill-auto-reject.ts",
     "create-docs": "npx tsx src/scripts/create-docs.ts",
     "announce-update": "npx tsx src/scripts/announce-update.ts",
+    "add-interview-result-columns": "npx tsx src/scripts/add-interview-result-columns.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

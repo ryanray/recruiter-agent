@@ -466,6 +466,84 @@ export class Agent {
     return { newlyBooked };
   }
 
+  async processInterviewResults(): Promise<{
+    processed: { name: string; result: string; action: string }[];
+    inPersonReminders: string[];
+  }> {
+    console.log('\n[Agent] Checking for interview results to process...');
+    const candidates = await this.sheets.getActiveCandidates();
+    const processed: { name: string; result: string; action: string }[] = [];
+    const inPersonReminders: string[] = [];
+    const reminderDays = this.config.interview_results.in_person_reminder_days;
+
+    for (const candidate of candidates) {
+      try {
+        const phoneResult = (candidate.phoneInterviewResult ?? '').trim();
+        const inPersonResult = (candidate.inPersonInterviewResult ?? '').trim();
+        const isBlank = (v: string) => !v || v.toLowerCase() === 'none';
+
+        if (candidate.status === 'Interview Scheduled' && !isBlank(phoneResult)) {
+          if (phoneResult === 'Passed') {
+            console.log(`[Agent] ${candidate.name} — phone interview Passed → In-Person Interview Scheduled`);
+            await this.sheets.updateCandidateStatus(
+              candidate.name,
+              'In-Person Interview Scheduled',
+              { inPersonInterviewScheduledAt: today() }
+            );
+            processed.push({ name: candidate.name, result: 'Passed', action: 'In-Person Interview Scheduled' });
+          } else if (phoneResult === 'Failed' || phoneResult === 'No-Show') {
+            console.log(`[Agent] ${candidate.name} — phone interview ${phoneResult} → queuing Reject`);
+            await this.sheets.updateCandidateStatus(
+              candidate.name,
+              candidate.status,
+              { humanDecision: 'Reject' }
+            );
+            processed.push({ name: candidate.name, result: phoneResult, action: 'Set humanDecision=Reject' });
+          }
+        }
+
+        if (candidate.status === 'In-Person Interview Scheduled' && !isBlank(inPersonResult)) {
+          if (inPersonResult === 'Hired') {
+            console.log(`[Agent] ${candidate.name} — in-person interview Hired → queuing Hire`);
+            await this.sheets.updateCandidateStatus(
+              candidate.name,
+              candidate.status,
+              { humanDecision: 'Hire' }
+            );
+            processed.push({ name: candidate.name, result: 'Hired', action: 'Set humanDecision=Hire' });
+          } else if (inPersonResult === 'Rejected' || inPersonResult === 'No-Show') {
+            console.log(`[Agent] ${candidate.name} — in-person interview ${inPersonResult} → queuing Reject`);
+            await this.sheets.updateCandidateStatus(
+              candidate.name,
+              candidate.status,
+              { humanDecision: 'Reject' }
+            );
+            processed.push({ name: candidate.name, result: inPersonResult, action: 'Set humanDecision=Reject' });
+          }
+        }
+
+        // Reminder check: in-person stage started but no result yet and deadline has passed
+        if (
+          candidate.status === 'In-Person Interview Scheduled' &&
+          isBlank(inPersonResult) &&
+          candidate.inPersonInterviewScheduledAt
+        ) {
+          const daysSince = Math.floor(
+            (Date.now() - new Date(candidate.inPersonInterviewScheduledAt).getTime()) / 86_400_000
+          );
+          if (daysSince > reminderDays) {
+            inPersonReminders.push(candidate.name);
+          }
+        }
+      } catch (err) {
+        console.error(`[Agent] Error processing interview result for ${candidate.name}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    console.log(`[Agent] Interview results processed: ${processed.length}, reminders: ${inPersonReminders.length}`);
+    return { processed, inPersonReminders };
+  }
+
   async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: string[] }> {
     console.log('\n[Agent] Checking for candidates needing follow-up...');
     const candidates = await this.sheets.getActiveCandidates();
