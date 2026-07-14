@@ -172,8 +172,10 @@ export function formatActSummary(params: {
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
   humanReviewFlagged: string[];
+  interviewResultsProcessed: { name: string; result: string; action: string }[];
+  inPersonReminders: string[];
 }): string {
-  const { actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged } = params;
+  const { actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders } = params;
   const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const lines: string[] = [`*Chandler — Act Run* (${timestamp} UTC)`];
 
@@ -185,6 +187,20 @@ export function formatActSummary(params: {
   if (newlyBooked.length > 0) {
     lines.push(`\n*Interviews booked (${newlyBooked.length}):*`);
     for (const b of newlyBooked) lines.push(`  • ${b.name} — ${b.scheduledAt}`);
+  }
+
+  if (interviewResultsProcessed.length > 0) {
+    lines.push(`\n*Interview results actioned (${interviewResultsProcessed.length}):*`);
+    for (const r of interviewResultsProcessed) {
+      lines.push(`  • ${r.name} — ${r.result} → ${r.action}`);
+    }
+  }
+
+  if (inPersonReminders.length > 0) {
+    lines.push(`\n*⚠️ In-person scheduling needed (${inPersonReminders.length}):*`);
+    for (const name of inPersonReminders) {
+      lines.push(`  • ${name} — phone interview passed, please schedule in-person`);
+    }
   }
 
   if (followUpsSent.length > 0) {
@@ -203,7 +219,8 @@ export function formatActSummary(params: {
   }
 
   if (actioned.length === 0 && newlyBooked.length === 0 && followUpsSent.length === 0 &&
-      neverResponded.length === 0 && humanReviewFlagged.length === 0) {
+      neverResponded.length === 0 && humanReviewFlagged.length === 0 &&
+      interviewResultsProcessed.length === 0 && inPersonReminders.length === 0) {
     lines.push('\n_Nothing to act on._');
   }
 
