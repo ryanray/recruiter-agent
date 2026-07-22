@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { createWriteStream, mkdirSync } from 'fs';
 import { join } from 'path';
-import type { RunResult } from './types.js';
+import type { RunResult, HumanReviewFlag } from './types.js';
 
 export function startFileLog(label: string): () => void {
   mkdirSync('logs', { recursive: true });
@@ -99,8 +99,8 @@ export function formatRunLog(result: RunResult): string {
 
   if (result.humanReviewFlagged.length > 0) {
     lines.push('', `HUMAN REVIEW FLAGGED (${result.humanReviewFlagged.length})`);
-    for (const name of result.humanReviewFlagged) {
-      lines.push(`  ⚠️ ${name} — applied to multiple jobs, awaiting human decision`);
+    for (const f of result.humanReviewFlagged) {
+      lines.push(`  ⚠️ ${f.name} — applied to ${f.otherJobCount} other job(s), awaiting human decision`);
     }
   }
 
@@ -148,7 +148,9 @@ export function formatCandidateSummary(result: RunResult): string {
   }
   if (result.humanReviewFlagged.length > 0) {
     lines.push(`\n*Flagged for Human Review (${result.humanReviewFlagged.length}):*`);
-    for (const name of result.humanReviewFlagged) lines.push(`  ⚠️ ${name}`);
+    for (const f of result.humanReviewFlagged) {
+      lines.push(`  ⚠️ ${f.name} — applied to ${f.otherJobCount} other job(s)  <${f.indeedUrl}|View in Indeed>`);
+    }
   }
   if (result.autoRejected.length > 0) {
     lines.push(`\n*Auto-rejected — score below threshold (${result.autoRejected.length}):*`);
@@ -171,7 +173,7 @@ export function formatActSummary(params: {
   newlyBooked: { name: string; scheduledAt: string }[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
-  humanReviewFlagged: string[];
+  humanReviewFlagged: HumanReviewFlag[];
   interviewResultsProcessed: { name: string; result: string; action: string }[];
   inPersonReminders: string[];
 }): string {
@@ -215,7 +217,9 @@ export function formatActSummary(params: {
 
   if (humanReviewFlagged.length > 0) {
     lines.push(`\n*Flagged for Human Review (${humanReviewFlagged.length}):*`);
-    for (const name of humanReviewFlagged) lines.push(`  • ${name}`);
+    for (const f of humanReviewFlagged) {
+      lines.push(`  • ${f.name} — applied to ${f.otherJobCount} other job(s)  <${f.indeedUrl}|View in Indeed>`);
+    }
   }
 
   if (actioned.length === 0 && newlyBooked.length === 0 && followUpsSent.length === 0 &&

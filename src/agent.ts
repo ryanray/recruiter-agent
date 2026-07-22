@@ -1,6 +1,6 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType, HumanReviewFlag,
 } from './types.js';
 import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
@@ -100,11 +100,11 @@ export class Agent {
           };
           await this.sheets.addCandidate('Active', row);
           await this.safeLogEvent(applicant.name, 'applicant_added');
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `⚠️ *Human review needed:* ${applicant.name} has applied to ${profileFetchResult.otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${applicant.indeedProfileUrl}|View in Indeed>`
-          );
-          result.humanReviewFlagged.push(applicant.name);
+          result.humanReviewFlagged.push({
+            name: applicant.name,
+            otherJobCount: profileFetchResult.otherJobCount,
+            indeedUrl: applicant.indeedProfileUrl,
+          });
           markProcessed(applicant.id);
           continue;
         }
@@ -554,7 +554,7 @@ export class Agent {
     return { processed, inPersonReminders };
   }
 
-  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: string[] }> {
+  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: HumanReviewFlag[] }> {
     console.log('\n[Agent] Checking for candidates needing follow-up...');
     const candidates = await this.sheets.getActiveCandidates();
     const pending = candidates.filter(c => c.status === 'Screened - Invite Sent');
@@ -562,7 +562,7 @@ export class Agent {
 
     const followUpsSent: { name: string; inviteCount: number }[] = [];
     const neverResponded: string[] = [];
-    const humanReviewFlagged: string[] = [];
+    const humanReviewFlagged: HumanReviewFlag[] = [];
     const thresholdDays = this.config.scheduling.follow_up_days;
 
     for (const candidate of pending) {
@@ -587,11 +587,11 @@ export class Agent {
           if (otherJobCount > 0) {
             console.log(`[Agent] ${candidate.name} has applied to ${otherJobCount} other job(s) — flagging for human review instead of sending follow-up.`);
             await this.sheets.updateCandidateStatus(candidate.name, 'Human Review');
-            await this.slack.post(
-              this.config.slack.recruiting_channel,
-              `⚠️ *Human review needed:* ${candidate.name} has applied to ${otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${candidate.indeedUrl}|View in Indeed>`
-            );
-            humanReviewFlagged.push(candidate.name);
+            humanReviewFlagged.push({
+              name: candidate.name,
+              otherJobCount,
+              indeedUrl: candidate.indeedUrl,
+            });
             continue;
           }
         } catch (profileErr) {

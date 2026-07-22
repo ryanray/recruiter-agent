@@ -721,7 +721,7 @@ describe('multi-job applicant detection', () => {
     agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
   });
 
-  it('adds Human Review row, posts Slack, populates humanReviewFlagged, skips Drive/scoring', async () => {
+  it('adds Human Review row, records flag in result, posts no individual Slack message', async () => {
     const applicant = makeApplicant({
       id: 'app-multi',
       name: 'Multi Job',
@@ -746,12 +746,13 @@ describe('multi-job applicant detection', () => {
     expect(drive.copies).toHaveLength(0);
     expect(indeed.markedSentiments).toHaveLength(0);
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Multi Job');
-    expect(slack.messages[0].message).toContain('1 other job(s)');
-    expect(slack.messages[0].message).toContain('Human review needed');
+    expect(slack.messages).toHaveLength(0);
 
-    expect(result.humanReviewFlagged).toEqual(['Multi Job']);
+    expect(result.humanReviewFlagged).toEqual([{
+      name: 'Multi Job',
+      otherJobCount: 1,
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-multi',
+    }]);
   });
 
   it('normal candidate (otherJobCount=0) still goes through full pipeline', async () => {
@@ -774,7 +775,7 @@ describe('multi-job applicant detection', () => {
     }));
     indeed.multiJobApplicantIds.add('app-fu');
 
-    const { followUpsSent } = await agent.processFollowUps();
+    const { followUpsSent, humanReviewFlagged } = await agent.processFollowUps();
 
     expect(followUpsSent).toHaveLength(0);
     expect(indeed.interviewsSetUp).toHaveLength(0);
@@ -782,9 +783,12 @@ describe('multi-job applicant detection', () => {
     const row = sheets.tabs['Active'].find(c => c.name === 'Follow Up Person');
     expect(row!.status).toBe('Human Review');
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Follow Up Person');
-    expect(slack.messages[0].message).toContain('Human review needed');
+    expect(slack.messages).toHaveLength(0);
+    expect(humanReviewFlagged).toEqual([{
+      name: 'Follow Up Person',
+      otherJobCount: 1,
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-fu',
+    }]);
   });
 
   it('processFollowUps still sends follow-up when candidate has not applied to other jobs', async () => {

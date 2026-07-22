@@ -143,6 +143,12 @@ export interface RunError {
   action: string;
 }
 
+export interface HumanReviewFlag {
+  name: string;
+  otherJobCount: number;
+  indeedUrl: string;
+}
+
 export interface RunResult {
   startedAt: Date;
   completedAt: Date;
@@ -159,7 +165,7 @@ export interface RunResult {
   scoreFailures: string[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
-  humanReviewFlagged: string[];
+  humanReviewFlagged: HumanReviewFlag[];
   autoRejected: RunCandidateResult[];
   configVersion: string;
   screeningCriteria: {

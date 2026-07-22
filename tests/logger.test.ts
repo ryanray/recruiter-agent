@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatRunLog } from '../src/logger.js';
+import { formatRunLog, formatCandidateSummary } from '../src/logger.js';
 import type { RunResult } from '../src/types.js';
 
 function makeResult(overrides: Partial<RunResult> = {}): RunResult {
@@ -20,6 +20,7 @@ function makeResult(overrides: Partial<RunResult> = {}): RunResult {
     followUpsSent: [],
     neverResponded: [],
     humanReviewFlagged: [],
+    autoRejected: [],
     configVersion: 'abc1234',
     screeningCriteria: {
       required: ['within_20_miles_south_jordan', 'valid_license_and_transportation'],
@@ -65,5 +66,22 @@ describe('formatRunLog', () => {
     const log = formatRunLog(result);
     expect(log).toContain('Drive folder failed for Jane');
     expect(log).toContain('Permission denied');
+  });
+
+  it('renders human review flags with other-job count', () => {
+    const log = formatRunLog(makeResult({
+      humanReviewFlagged: [{ name: 'Multi Job', otherJobCount: 2, indeedUrl: 'https://employers.indeed.com/candidates/view?id=x' }],
+    }));
+    expect(log).toContain('Multi Job — applied to 2 other job(s)');
+  });
+});
+
+describe('formatCandidateSummary', () => {
+  it('renders human review flags with count and Indeed link', () => {
+    const msg = formatCandidateSummary(makeResult({
+      humanReviewFlagged: [{ name: 'Multi Job', otherJobCount: 2, indeedUrl: 'https://employers.indeed.com/candidates/view?id=x' }],
+    }));
+    expect(msg).toContain('*Flagged for Human Review (1):*');
+    expect(msg).toContain('Multi Job — applied to 2 other job(s)  <https://employers.indeed.com/candidates/view?id=x|View in Indeed>');
   });
 });
