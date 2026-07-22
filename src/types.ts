@@ -165,6 +165,19 @@ export interface BookedInterviewNotice {
   driveFolder?: string;
 }
 
+export interface HoldNotice {
+  name: string;
+  agentRecommendation: string;
+  notes: string;
+  indeedUrl: string;
+}
+
+export interface ActionRequiredItem {
+  name: string;
+  issue: string;
+  link?: string;
+}
+
 export interface RunResult {
   startedAt: Date;
   completedAt: Date;

@@ -30,7 +30,7 @@ const timeout = setTimeout(() => {
 
 try {
   const { processed: interviewResultsProcessed, inPersonReminders } = await agent.processInterviewResults();
-  const { actioned } = await agent.processPendingDecisions();
+  const { actioned, holds, actionRequired } = await agent.processPendingDecisions();
   const { newlyBooked } = await agent.processBookedInterviews();
   const { followUpsSent, neverResponded, humanReviewFlagged } = await agent.processFollowUps();
   clearTimeout(timeout);
@@ -45,7 +45,7 @@ try {
     console.log(`[Act] Flagged for human review: ${humanReviewFlagged.map(f => f.name).join(', ')}`);
   }
   console.log('\n[Act] Complete.');
-  await slack.post(config.slack.recruiting_channel, formatActSummary({ actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders }));
+  await slack.post(config.slack.recruiting_channel, formatActSummary({ actioned, holds, actionRequired, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders }));
 } catch (err) {
   clearTimeout(timeout);
   console.error('Fatal error:', err instanceof Error ? err.message : err);

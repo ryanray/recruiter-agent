@@ -1,6 +1,6 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType, HumanReviewFlag, BookedInterviewNotice,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType, HumanReviewFlag, BookedInterviewNotice, HoldNotice, ActionRequiredItem,
 } from './types.js';
 import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
@@ -266,8 +266,14 @@ export class Agent {
     return result;
   }
 
-  async processPendingDecisions(): Promise<{ actioned: { name: string; decision: string }[] }> {
+  async processPendingDecisions(): Promise<{
+    actioned: { name: string; decision: string }[];
+    holds: HoldNotice[];
+    actionRequired: ActionRequiredItem[];
+  }> {
     const actioned: { name: string; decision: string }[] = [];
+    const holds: HoldNotice[] = [];
+    const actionRequired: ActionRequiredItem[] = [];
     const candidates = await this.sheets.getCandidatesForAction();
     console.log(`\n[Agent] ${candidates.length} candidate(s) with pending human decisions.`);
 
@@ -356,12 +362,14 @@ export class Agent {
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Checkback Later');
 
         } else if (decision === 'hold') {
-          console.log(`[Agent] Clearing humanDecision for ${candidate.name} and posting Slack alert...`);
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name} (Hold — flagged in run summary)...`);
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n<${candidate.indeedUrl}|View in Indeed>`
-          );
+          holds.push({
+            name: candidate.name,
+            agentRecommendation: candidate.agentRecommendation,
+            notes: candidate.notes,
+            indeedUrl: candidate.indeedUrl,
+          });
         } else if (decision === 'hire') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
@@ -382,10 +390,10 @@ export class Agent {
 
           if (!spreadsheet) {
             console.warn(`[Agent] No spreadsheet found in folder for ${candidate.name} — skipping Offer Info check.`);
-            await this.slack.post(
-              this.config.slack.recruiting_channel,
-              `@here Action required: could not find interview questions sheet for ${candidate.name}. Please verify their Drive folder.`
-            );
+            actionRequired.push({
+              name: candidate.name,
+              issue: 'could not find interview questions sheet — please verify their Drive folder',
+            });
           } else {
             console.log(`[Agent] Reading Offer Info tab...`);
             offerInfo = await this.sheets.readOfferInfo(spreadsheet.id);
@@ -393,10 +401,11 @@ export class Agent {
             if (missingFields.length > 0) {
               console.warn(`[Agent] Missing offer info for ${candidate.name}: ${missingFields.join(', ')}`);
               const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheet.id}/edit`;
-              await this.slack.post(
-                this.config.slack.recruiting_channel,
-                `@here Action required: missing offer info for ${candidate.name} (${missingFields.join(', ')}). <${sheetUrl}|Click here>`
-              );
+              actionRequired.push({
+                name: candidate.name,
+                issue: `missing offer info (${missingFields.join(', ')})`,
+                link: sheetUrl,
+              });
             } else {
               console.log(`[Agent] Offer info valid — start date: ${offerInfo.startDate}, rate: $${offerInfo.rateOffered}/hr`);
             }
@@ -436,7 +445,7 @@ export class Agent {
         console.error(`[Agent] Error acting on ${candidate.name}: ${err instanceof Error ? err.message : err}`);
       }
     }
-    return { actioned };
+    return { actioned, holds, actionRequired };
   }
 
   async processBookedInterviews(): Promise<{ newlyBooked: BookedInterviewNotice[] }> {

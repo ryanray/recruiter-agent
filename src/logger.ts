@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { createWriteStream, mkdirSync } from 'fs';
 import { join } from 'path';
-import type { RunResult, HumanReviewFlag, BookedInterviewNotice } from './types.js';
+import type { RunResult, HumanReviewFlag, BookedInterviewNotice, HoldNotice, ActionRequiredItem } from './types.js';
 
 export function startFileLog(label: string): () => void {
   mkdirSync('logs', { recursive: true });
@@ -177,6 +177,8 @@ export function formatCandidateSummary(result: RunResult): string {
 
 export function formatActSummary(params: {
   actioned: { name: string; decision: string }[];
+  holds: HoldNotice[];
+  actionRequired: ActionRequiredItem[];
   newlyBooked: BookedInterviewNotice[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
@@ -184,9 +186,17 @@ export function formatActSummary(params: {
   interviewResultsProcessed: { name: string; result: string; action: string }[];
   inPersonReminders: string[];
 }): string {
-  const { actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders } = params;
+  const { actioned, holds, actionRequired, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders } = params;
   const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-  const lines: string[] = [`*Chandler — Act Run* (${timestamp} UTC)`];
+  const header = `*Chandler — Act Run* (${timestamp} UTC)`;
+  const lines: string[] = actionRequired.length > 0 ? [`<!here> ${header}`] : [header];
+
+  if (actionRequired.length > 0) {
+    lines.push(`\n*🚨 Action required (${actionRequired.length}):*`);
+    for (const a of actionRequired) {
+      lines.push(`  • ${a.name} — ${a.issue}${a.link ? `  <${a.link}|Open sheet>` : ''}`);
+    }
+  }
 
   if (actioned.length > 0) {
     lines.push(`\n*Decisions processed (${actioned.length}):*`);
@@ -207,6 +217,14 @@ export function formatActSummary(params: {
     lines.push(`\n*Interview results actioned (${interviewResultsProcessed.length}):*`);
     for (const r of interviewResultsProcessed) {
       lines.push(`  • ${r.name} — ${r.result} → ${r.action}`);
+    }
+  }
+
+  if (holds.length > 0) {
+    lines.push(`\n*🚩 Held for review (${holds.length}):*`);
+    for (const h of holds) {
+      const notesStr = h.notes ? ` — ${h.notes}` : '';
+      lines.push(`  • ${h.name} — Agent: ${h.agentRecommendation}${notesStr}  <${h.indeedUrl}|View in Indeed>`);
     }
   }
 
@@ -236,7 +254,8 @@ export function formatActSummary(params: {
 
   if (actioned.length === 0 && newlyBooked.length === 0 && followUpsSent.length === 0 &&
       neverResponded.length === 0 && humanReviewFlagged.length === 0 &&
-      interviewResultsProcessed.length === 0 && inPersonReminders.length === 0) {
+      interviewResultsProcessed.length === 0 && inPersonReminders.length === 0 &&
+      holds.length === 0 && actionRequired.length === 0) {
     lines.push('\n_Nothing to act on._');
   }
 

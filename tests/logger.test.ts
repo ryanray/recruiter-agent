@@ -106,6 +106,8 @@ describe('formatCandidateSummary', () => {
 function makeActParams(overrides: Record<string, unknown> = {}) {
   return {
     actioned: [],
+    holds: [],
+    actionRequired: [],
     newlyBooked: [],
     followUpsSent: [],
     neverResponded: [],
@@ -144,5 +146,29 @@ describe('formatActSummary', () => {
     expect(msg).toContain('Jane Doe — Thursday, June 5, 2026  |  <https://employers.indeed.com/candidates/view?id=app-1|Open on Indeed>');
     expect(msg).not.toContain('/100');
     expect(msg).not.toContain('Google Drive');
+  });
+
+  it('starts with <!here> and an Action required section when actionRequired is non-empty', () => {
+    const msg = formatActSummary(makeActParams({
+      actionRequired: [{ name: 'Ray, Ryan', issue: 'missing offer info (start date)', link: 'https://docs.google.com/spreadsheets/d/abc/edit' }],
+    }));
+    expect(msg.startsWith('<!here>')).toBe(true);
+    expect(msg).toContain('🚨 Action required (1)');
+    expect(msg).toContain('Ray, Ryan — missing offer info (start date)  <https://docs.google.com/spreadsheets/d/abc/edit|Open sheet>');
+  });
+
+  it('omits <!here> and still reports nothing to act on when everything is empty', () => {
+    const msg = formatActSummary(makeActParams());
+    expect(msg).not.toContain('<!here>');
+    expect(msg).toContain('_Nothing to act on._');
+  });
+
+  it('renders holds with recommendation, notes, and Indeed link', () => {
+    const msg = formatActSummary(makeActParams({
+      holds: [{ name: 'Jane Doe', agentRecommendation: 'UNSURE', notes: 'Cannot determine distance', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('*🚩 Held for review (1):*');
+    expect(msg).toContain('Jane Doe — Agent: UNSURE — Cannot determine distance  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+    expect(msg).not.toContain('_Nothing to act on._');
   });
 });

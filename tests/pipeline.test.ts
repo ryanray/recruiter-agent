@@ -360,22 +360,24 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(sheets.tabs['Checkback Later']).toHaveLength(1);
     });
 
-    it('Hold: clears humanDecision first, posts Slack alert, no sentiment change, no folder move', async () => {
+    it('Hold: clears humanDecision, records hold in result, posts no individual Slack message', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Hold', agentRecommendation: 'UNSURE',
         indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
         notes: 'Cannot determine distance',
       }));
 
-      await agent.processPendingDecisions();
+      const { holds } = await agent.processPendingDecisions();
 
       expect(indeed.markedSentiments).toHaveLength(0);
       expect(drive.moves).toHaveLength(0);
-      expect(slack.messages).toHaveLength(1);
-      expect(slack.messages[0].message).toContain('Jane Doe');
-      expect(slack.messages[0].message).toContain('UNSURE');
-      expect(slack.messages[0].message).toContain('Cannot determine distance');
-      expect(slack.messages[0].message).toContain('https://employers.indeed.com/candidates/view?id=app-1');
+      expect(slack.messages).toHaveLength(0);
+      expect(holds).toEqual([{
+        name: 'Jane Doe',
+        agentRecommendation: 'UNSURE',
+        notes: 'Cannot determine distance',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      }]);
       expect(sheets.tabs['Active'][0].humanDecision).toBe('None');
     });
   });
@@ -889,17 +891,18 @@ describe('Agent — hire decision', () => {
     expect(slack.messages).toHaveLength(0);
   });
 
-  it('posts Slack @here alert when offer info has missing fields, hire still completes', async () => {
+  it('records action-required item when offer info has missing fields, hire still completes', async () => {
     sheets.tabs['Active'].push(makeHireCandidate());
     sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ email: '', cellPhone: '' }));
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('@here');
-    expect(slack.messages[0].message).toContain('Ray, Ryan');
-    expect(slack.messages[0].message).toContain('Click here');
+    expect(slack.messages).toHaveLength(0);
+    expect(actionRequired).toHaveLength(1);
+    expect(actionRequired[0].name).toBe('Ray, Ryan');
+    expect(actionRequired[0].issue).toContain('missing offer info');
+    expect(actionRequired[0].link).toBe('https://docs.google.com/spreadsheets/d/fake-sheet-id/edit');
     expect(sheets.tabs['Hired']).toHaveLength(1);
     expect(sheets.trackerRows).toHaveLength(1);
   });
@@ -909,10 +912,10 @@ describe('Agent — hire decision', () => {
     sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ rateOffered: '17', justification: '' }));
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('justification');
+    expect(actionRequired).toHaveLength(1);
+    expect(actionRequired[0].issue).toContain('justification');
   });
 
   it('does not flag justification as missing when rate is exactly 16', async () => {
@@ -920,20 +923,24 @@ describe('Agent — hire decision', () => {
     sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ rateOffered: '16', justification: '' }));
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
+    expect(actionRequired).toHaveLength(0);
     expect(slack.messages).toHaveLength(0);
   });
 
-  it('posts Slack alert about missing sheet when no spreadsheet found in folder, hire still completes', async () => {
+  it('records action-required item about missing sheet when no spreadsheet found in folder, hire still completes', async () => {
     sheets.tabs['Active'].push(makeHireCandidate());
     drive.spreadsheetInFolder = null;
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Ray, Ryan');
+    expect(slack.messages).toHaveLength(0);
+    expect(actionRequired).toEqual([{
+      name: 'Ray, Ryan',
+      issue: 'could not find interview questions sheet — please verify their Drive folder',
+    }]);
     expect(sheets.tabs['Hired']).toHaveLength(1);
     expect(sheets.trackerRows).toContainEqual({ lastName: 'Ray', firstName: 'Ryan', startDate: '' });
   });
