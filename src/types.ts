@@ -124,6 +124,7 @@ export interface RunCandidateResult {
   tier?: string;
   reason?: string;
   unclearField?: string;
+  indeedUrl?: string;
 }
 
 export interface RunBookingResult {
@@ -149,6 +150,12 @@ export interface HumanReviewFlag {
   indeedUrl: string;
 }
 
+export interface PreviouslyContactedFlag {
+  name: string;
+  lastSeen: string;
+  indeedUrl: string;
+}
+
 export interface RunResult {
   startedAt: Date;
   completedAt: Date;
@@ -166,6 +173,7 @@ export interface RunResult {
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
   humanReviewFlagged: HumanReviewFlag[];
+  previouslyContacted: PreviouslyContactedFlag[];
   autoRejected: RunCandidateResult[];
   configVersion: string;
   screeningCriteria: {

@@ -144,16 +144,16 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(sheets.tabs['Rejected']).toHaveLength(0);
   });
 
-  it('UNSURE candidate gets Active row and posts Slack alert', async () => {
+  it('UNSURE candidate gets Active row and lands in result.unsure with no individual Slack post', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => unsureResult('Cannot determine distance'), async () => defaultScore(), config);
 
-    await agent.evaluateCandidates(since, new Set(), () => {});
+    const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
     expect(sheets.tabs['Active'][0].agentRecommendation).toBe('UNSURE');
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].channel).toBe('#recruiting');
-    expect(slack.messages[0].message).toContain('Review needed');
+    expect(slack.messages).toHaveLength(0);
+    expect(result.unsure).toHaveLength(1);
+    expect(result.unsure[0].indeedUrl).toBe('https://employers.indeed.com/candidates/view?id=app-1');
   });
 
   it('urgent PASS candidate still goes to Awaiting Review without a separate Slack alert', async () => {
@@ -476,7 +476,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       slack = new FakeSlackAdapter();
     });
 
-    it('flags applicant with prior contact within window: notes prefixed + Slack alert', async () => {
+    it('flags applicant with prior contact within window: notes prefixed + recorded in result', async () => {
       const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
       sheets.previouslyContacted.push({
         name: 'Jane Doe', lastContact: yesterday, notes: 'Rejected', indeedId: 'old-id',
@@ -484,11 +484,14 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant()]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      const priorAlert = slack.messages.find(m => m.message.includes('Previously contacted'));
-      expect(priorAlert).toBeDefined();
-      expect(priorAlert!.message).toContain('Jane Doe');
+      expect(slack.messages).toHaveLength(0);
+      expect(result.previouslyContacted).toEqual([{
+        name: 'Jane Doe',
+        lastSeen: yesterday,
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      }]);
       expect(sheets.tabs['Active'][0].notes).toMatch(/^\[Previously contacted:/);
     });
 
@@ -499,9 +502,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant()]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      expect(slack.messages.filter(m => m.message.includes('Previously contacted'))).toHaveLength(0);
+      expect(result.previouslyContacted).toHaveLength(0);
       expect(sheets.tabs['Active'][0].notes).not.toContain('[Previously contacted:');
     });
 
@@ -509,9 +512,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant()]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      expect(slack.messages.filter(m => m.message.includes('Previously contacted'))).toHaveLength(0);
+      expect(result.previouslyContacted).toHaveLength(0);
       expect(sheets.tabs['Active'][0].notes).not.toContain('[Previously contacted:');
     });
 
@@ -523,9 +526,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant({ name: 'Jane Doe' })]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      expect(slack.messages.find(m => m.message.includes('Previously contacted'))).toBeDefined();
+      expect(result.previouslyContacted).toHaveLength(1);
     });
   });
 

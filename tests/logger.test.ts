@@ -20,6 +20,7 @@ function makeResult(overrides: Partial<RunResult> = {}): RunResult {
     followUpsSent: [],
     neverResponded: [],
     humanReviewFlagged: [],
+    previouslyContacted: [],
     autoRejected: [],
     configVersion: 'abc1234',
     screeningCriteria: {
@@ -83,5 +84,21 @@ describe('formatCandidateSummary', () => {
     }));
     expect(msg).toContain('*Flagged for Human Review (1):*');
     expect(msg).toContain('Multi Job — applied to 2 other job(s)  <https://employers.indeed.com/candidates/view?id=x|View in Indeed>');
+  });
+
+  it('renders unsure entries with an Indeed link', () => {
+    const msg = formatCandidateSummary(makeResult({
+      unsure: [{ name: 'Jane Doe', location: '', experience: '', certifications: '', unclearField: 'Cannot determine distance', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('? Jane Doe — Cannot determine distance');
+    expect(msg).toContain('<https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+  });
+
+  it('renders previously contacted section with last-seen date and link', () => {
+    const msg = formatCandidateSummary(makeResult({
+      previouslyContacted: [{ name: 'Jane Doe', lastSeen: '2026-05-01', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('*Previously contacted (1):*');
+    expect(msg).toContain('Jane Doe — last seen 2026-05-01  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
   });
 });

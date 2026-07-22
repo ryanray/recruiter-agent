@@ -136,7 +136,8 @@ export function formatCandidateSummary(result: RunResult): string {
     lines.push(`\n*Unsure — needs review (${result.unsure.length}):*`);
     for (const c of result.unsure) {
       const scoreStr = c.score != null ? `  ${c.score}/100 (${c.tier})` : '';
-      lines.push(`  ? ${c.name} — ${c.unclearField}${scoreStr}`);
+      const linkStr = c.indeedUrl ? `  <${c.indeedUrl}|View in Indeed>` : '';
+      lines.push(`  ? ${c.name} — ${c.unclearField}${scoreStr}${linkStr}`);
     }
   }
   if (result.rejected.length > 0) {
@@ -156,6 +157,12 @@ export function formatCandidateSummary(result: RunResult): string {
     lines.push(`\n*Auto-rejected — score below threshold (${result.autoRejected.length}):*`);
     for (const c of result.autoRejected) {
       lines.push(`  ✗ ${c.name} — ${c.score}/100 (${c.tier})`);
+    }
+  }
+  if (result.previouslyContacted.length > 0) {
+    lines.push(`\n*Previously contacted (${result.previouslyContacted.length}):*`);
+    for (const p of result.previouslyContacted) {
+      lines.push(`  • ${p.name} — last seen ${p.lastSeen}  <${p.indeedUrl}|View in Indeed>`);
     }
   }
   if (result.errors.length > 0) {

@@ -31,6 +31,7 @@ export class Agent {
       pdfFailures: [], scoreFailures: [],
       followUpsSent: [], neverResponded: [],
       humanReviewFlagged: [],
+      previouslyContacted: [],
       autoRejected: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
@@ -112,10 +113,11 @@ export class Agent {
         const priorContact = priorContactMap.get(applicant.name.toLowerCase());
         if (priorContact) {
           console.log(`[Agent] ${applicant.name} was previously contacted on ${priorContact} — flagging for human review.`);
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `⚠️ *Previously contacted:* ${applicant.name} — last seen ${priorContact}\n<${applicant.indeedProfileUrl}|View in Indeed>`
-          );
+          result.previouslyContacted.push({
+            name: applicant.name,
+            lastSeen: priorContact,
+            indeedUrl: applicant.indeedProfileUrl,
+          });
         }
 
         console.log(`[Agent] Screening ${applicant.name} with Claude...`);
@@ -241,11 +243,8 @@ export class Agent {
             score: score.score,
             tier: score.tier,
             unclearField: screening.reasons.join('; '),
+            indeedUrl: applicant.indeedProfileUrl,
           });
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `❓ *Review needed:* ${applicant.name} — ${screening.reasons.join('; ')}\n<${applicant.indeedProfileUrl}|View in Indeed>`
-          );
         }
 
         console.log(`[Agent] Done with ${applicant.name}.`);
