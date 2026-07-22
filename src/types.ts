@@ -156,6 +156,15 @@ export interface PreviouslyContactedFlag {
   indeedUrl: string;
 }
 
+export interface BookedInterviewNotice {
+  name: string;
+  scheduledAt: string;
+  score?: string;
+  tier?: string;
+  indeedUrl: string;
+  driveFolder?: string;
+}
+
 export interface RunResult {
   startedAt: Date;
   completedAt: Date;

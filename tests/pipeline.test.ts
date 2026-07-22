@@ -395,7 +395,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
     });
 
-    it('updates status, lastContact, and posts Slack when interview is booked', async () => {
+    it('updates status, lastContact, and returns booked notice when interview is booked', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', name: 'Jane Doe', status: 'Screened - Invite Sent',
       }));
@@ -405,13 +405,19 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
       }]);
 
-      await agent.processBookedInterviews();
+      const { newlyBooked } = await agent.processBookedInterviews();
 
       expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
       expect(sheets.tabs['Active'][0].lastContact).toBeTruthy();
-      expect(slack.messages).toHaveLength(1);
-      expect(slack.messages[0].message).toContain('Jane Doe');
-      expect(slack.messages[0].message).toContain('Thursday, June 5, 2026');
+      expect(slack.messages).toHaveLength(0);
+      expect(newlyBooked).toEqual([{
+        name: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+        score: undefined,
+        tier: undefined,
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+        driveFolder: '',
+      }]);
     });
 
     it('skips candidate already at Interview Scheduled', async () => {
@@ -454,11 +460,12 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         { applicantId: 'app-2', applicantName: 'John Smith', scheduledAt: 'Friday, June 6, 2026 from 2:00 to 2:15 pm (MDT)' },
       ]);
 
-      await agent.processBookedInterviews();
+      const { newlyBooked } = await agent.processBookedInterviews();
 
       expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
       expect(sheets.tabs['Active'][1].status).toBe('Interview Scheduled');
-      expect(slack.messages).toHaveLength(2);
+      expect(slack.messages).toHaveLength(0);
+      expect(newlyBooked).toHaveLength(2);
     });
   });
 

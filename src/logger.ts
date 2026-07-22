@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { createWriteStream, mkdirSync } from 'fs';
 import { join } from 'path';
-import type { RunResult, HumanReviewFlag } from './types.js';
+import type { RunResult, HumanReviewFlag, BookedInterviewNotice } from './types.js';
 
 export function startFileLog(label: string): () => void {
   mkdirSync('logs', { recursive: true });
@@ -177,7 +177,7 @@ export function formatCandidateSummary(result: RunResult): string {
 
 export function formatActSummary(params: {
   actioned: { name: string; decision: string }[];
-  newlyBooked: { name: string; scheduledAt: string }[];
+  newlyBooked: BookedInterviewNotice[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
   humanReviewFlagged: HumanReviewFlag[];
@@ -195,7 +195,12 @@ export function formatActSummary(params: {
 
   if (newlyBooked.length > 0) {
     lines.push(`\n*Interviews booked (${newlyBooked.length}):*`);
-    for (const b of newlyBooked) lines.push(`  • ${b.name} — ${b.scheduledAt}`);
+    for (const b of newlyBooked) {
+      const scoreStr = b.score ? `  |  ${b.score}/100 (${b.tier})` : '';
+      const links = [`<${b.indeedUrl}|Open on Indeed>`];
+      if (b.driveFolder) links.push(`<${b.driveFolder}|Open on Google Drive>`);
+      lines.push(`  • ${b.name} — ${b.scheduledAt}${scoreStr}  |  ${links.join('  |  ')}`);
+    }
   }
 
   if (interviewResultsProcessed.length > 0) {

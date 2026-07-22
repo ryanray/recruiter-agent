@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatRunLog, formatCandidateSummary } from '../src/logger.js';
+import { formatRunLog, formatCandidateSummary, formatActSummary } from '../src/logger.js';
 import type { RunResult } from '../src/types.js';
 
 function makeResult(overrides: Partial<RunResult> = {}): RunResult {
@@ -100,5 +100,49 @@ describe('formatCandidateSummary', () => {
     }));
     expect(msg).toContain('*Previously contacted (1):*');
     expect(msg).toContain('Jane Doe — last seen 2026-05-01  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+  });
+});
+
+function makeActParams(overrides: Record<string, unknown> = {}) {
+  return {
+    actioned: [],
+    newlyBooked: [],
+    followUpsSent: [],
+    neverResponded: [],
+    humanReviewFlagged: [],
+    interviewResultsProcessed: [],
+    inPersonReminders: [],
+    ...overrides,
+  };
+}
+
+describe('formatActSummary', () => {
+  it('renders booked interviews with score and links', () => {
+    const msg = formatActSummary(makeActParams({
+      newlyBooked: [{
+        name: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+        score: '82', tier: 'Tier 1',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }],
+    }));
+    expect(msg).toContain('*Interviews booked (1):*');
+    expect(msg).toContain('Jane Doe — Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)  |  82/100 (Tier 1)');
+    expect(msg).toContain('<https://employers.indeed.com/candidates/view?id=app-1|Open on Indeed>');
+    expect(msg).toContain('<https://drive.google.com/drive/folders/folder-1|Open on Google Drive>');
+  });
+
+  it('omits score and Drive link when absent', () => {
+    const msg = formatActSummary(makeActParams({
+      newlyBooked: [{
+        name: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      }],
+    }));
+    expect(msg).toContain('Jane Doe — Thursday, June 5, 2026  |  <https://employers.indeed.com/candidates/view?id=app-1|Open on Indeed>');
+    expect(msg).not.toContain('/100');
+    expect(msg).not.toContain('Google Drive');
   });
 });

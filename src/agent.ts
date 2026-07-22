@@ -1,6 +1,6 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType, HumanReviewFlag,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType, HumanReviewFlag, BookedInterviewNotice,
 } from './types.js';
 import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
@@ -439,14 +439,14 @@ export class Agent {
     return { actioned };
   }
 
-  async processBookedInterviews(): Promise<{ newlyBooked: { name: string; scheduledAt: string }[] }> {
+  async processBookedInterviews(): Promise<{ newlyBooked: BookedInterviewNotice[] }> {
     console.log('\n[Agent] Checking for booked interviews...');
     const interviews = await this.indeed.getBookedInterviews();
     console.log(`[Agent] ${interviews.length} booked interview(s) found on Indeed.`);
 
     const activeCandidates = await this.sheets.getActiveCandidates();
     const byIndeedId = new Map(activeCandidates.map(c => [c.indeedId, c]));
-    const newlyBooked: { name: string; scheduledAt: string }[] = [];
+    const newlyBooked: BookedInterviewNotice[] = [];
 
     for (const interview of interviews) {
       const candidate = byIndeedId.get(interview.applicantId);
@@ -460,11 +460,14 @@ export class Agent {
       }
       console.log(`[Agent] Interview booked: ${candidate.name} — ${interview.scheduledAt}`);
       await this.sheets.updateCandidateStatus(candidate.name, 'Interview Scheduled', { lastContact: today(), interviewScheduledAt: today() });
-      await this.slack.post(
-        this.config.slack.recruiting_channel,
-        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}${candidate.score ? `  |  Score: ${candidate.score}/100 (${candidate.scoreTier})` : ''}\n<${candidate.indeedUrl}|Open on Indeed>${candidate.driveFolder ? `  |  <${candidate.driveFolder}|Open on Google Drive>` : ''}`
-      );
-      newlyBooked.push({ name: candidate.name, scheduledAt: interview.scheduledAt });
+      newlyBooked.push({
+        name: candidate.name,
+        scheduledAt: interview.scheduledAt,
+        score: candidate.score,
+        tier: candidate.scoreTier,
+        indeedUrl: candidate.indeedUrl,
+        driveFolder: candidate.driveFolder,
+      });
     }
     return { newlyBooked };
   }
