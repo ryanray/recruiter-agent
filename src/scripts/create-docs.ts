@@ -71,7 +71,7 @@ const USER_GUIDE_HTML = `<!DOCTYPE html>
   <li>Adds them to the <strong>Active</strong> sheet with a recommendation</li>
   <li>Acts on any <strong>humanDecision</strong> values your team has set (sends invites, rejects, etc.)</li>
   <li>Follows up with candidates who haven't responded</li>
-  <li>Posts Slack alerts for anything that needs human attention</li>
+  <li>Posts one Slack summary per run, with links for anything that needs human attention</li>
 </ol>
 
 <h2>What Chandler Will Never Do</h2>
@@ -110,7 +110,7 @@ Chandler acts on it and clears the column
   <tr><td><strong>Reject</strong></td><td>Marks no interest on Indeed, moves to the Rejected tab</td></tr>
   <tr><td><strong>Hire</strong></td><td>Moves their Drive folder to Active Employees, reads offer info, sets Indeed status to Hired, moves to Hired tab</td></tr>
   <tr><td><strong>Checkback Later</strong></td><td>Moves to the Checkback Later tab for future consideration</td></tr>
-  <tr><td><strong>Hold</strong></td><td>Posts a Slack alert for the team to discuss — no other action</td></tr>
+  <tr><td><strong>Hold</strong></td><td>Listed under "Held for review" in the act-run summary — no other action</td></tr>
   <tr><td><strong>None</strong></td><td>Clears the field — Chandler ignores this row</td></tr>
   <tr><td><strong>Do Not Contact</strong></td><td>Clears the field — no action taken anywhere</td></tr>
 </table>
@@ -145,16 +145,32 @@ Chandler acts on it and clears the column
 
 <hr>
 
-<h2>Slack Alerts — What They Mean</h2>
+<h2>Run Summaries — What the Sections Mean</h2>
+<p>Chandler posts one Slack message per run — one for <strong>Evaluate</strong>, one for <strong>Act</strong> — instead of a separate alert per candidate. Each message is broken into sections; only sections with content appear. Here's what each section means and what to do about it.</p>
+
+<h3>Act-run summary</h3>
 <table border="1" cellpadding="6" cellspacing="0">
-  <tr><th>Alert</th><th>What to do</th></tr>
-  <tr><td>🚨 Strong candidate</td><td>High-scoring CNA applied. Chandler likely auto-approved — check their Drive folder.</td></tr>
-  <tr><td>❓ Review needed</td><td>Chandler was unsure. Open the Active sheet, look at the candidate, and set humanDecision.</td></tr>
-  <tr><td>⚠️ Human review needed: applied to multiple jobs</td><td>This person applied to more than one of your Indeed listings. Decide which position to pursue, then set humanDecision.</td></tr>
-  <tr><td>⚠️ Previously contacted</td><td>This person applied before. Check their history before proceeding.</td></tr>
-  <tr><td>🗓 Interview scheduled</td><td>A candidate booked their interview. No action needed — just a heads up.</td></tr>
-  <tr><td>🚩 Hold for review</td><td>Someone set humanDecision to Hold. The team should discuss this candidate.</td></tr>
-  <tr><td>@here Action required</td><td>Something needs immediate attention — usually missing offer info when processing a hire. Follow the link in the message.</td></tr>
+  <tr><th>Section</th><th>What to do</th></tr>
+  <tr><td>🚨 Action required <em>(posted with <code>@here</code>)</em></td><td>Something needs immediate attention — usually missing offer info when processing a hire. Follow the link next to each item.</td></tr>
+  <tr><td>Decisions processed</td><td>Confirms which humanDecision values Chandler acted on this run. No action needed — just a record.</td></tr>
+  <tr><td>Interviews booked</td><td>A candidate booked their interview. Each entry includes the score/tier and Indeed/Drive links. No action needed — just a heads up.</td></tr>
+  <tr><td>Interview results actioned</td><td>Shows what Chandler did in response to a recorded Phone/In-Person Interview Result. No action needed unless something looks off.</td></tr>
+  <tr><td>🚩 Held for review</td><td>Someone set humanDecision to Hold. Follow the Indeed link, discuss as a team, and set a new humanDecision when ready.</td></tr>
+  <tr><td>⚠️ In-person scheduling needed</td><td>A candidate passed their phone interview. Schedule the in-person interview.</td></tr>
+  <tr><td>Follow-ups sent</td><td>Chandler sent another interview invite to a non-responsive candidate. No action needed.</td></tr>
+  <tr><td>Moved to Never Responded</td><td>Candidate reached 3 unanswered invites and was archived. No action needed.</td></tr>
+  <tr><td>Flagged for Human Review</td><td>This person applied to more than one of your Indeed listings. Follow the Indeed link, decide which position to pursue, then set humanDecision.</td></tr>
+</table>
+
+<h3>Evaluate-run summary</h3>
+<table border="1" cellpadding="6" cellspacing="0">
+  <tr><th>Section</th><th>What to do</th></tr>
+  <tr><td>Passed</td><td>Screened and scored. Strong candidates are typically auto-approved — check the Drive folder if you want details.</td></tr>
+  <tr><td>❓ Unsure</td><td>Chandler couldn't determine a required field. Follow the Indeed link, open the Active sheet, and set humanDecision.</td></tr>
+  <tr><td>Rejected</td><td>Failed screening. No action needed — Chandler handles the rejection.</td></tr>
+  <tr><td>⚠️ Flagged for Human Review</td><td>Applied to more than one of your Indeed listings (count shown). Follow the Indeed link and set humanDecision.</td></tr>
+  <tr><td>Auto-rejected</td><td>Score fell below the auto-reject threshold. No action needed.</td></tr>
+  <tr><td>Previously contacted</td><td>This person applied before. Follow the Indeed link and check their history before proceeding.</td></tr>
 </table>
 
 <hr>
@@ -178,11 +194,11 @@ Chandler acts on it and clears the column
 
 <h2>Things to Watch For</h2>
 <ul>
-  <li><strong>Human Review rows</strong> — nothing will happen until you set humanDecision. Watch for the ⚠️ alert in Slack.</li>
+  <li><strong>Human Review rows</strong> — nothing will happen until you set humanDecision. Watch for the "Flagged for Human Review" section in the run summary.</li>
   <li><strong>Auto-approved candidates</strong> — Tier 1 candidates with a PASS are automatically approved. They'll receive an invite on the next Chandler run. If you don't want to reach out, set humanDecision to Reject before the next run.</li>
-  <li><strong>UNSURE candidates</strong> — Chandler posted a ❓ alert for these. A human needs to look at the application and decide.</li>
+  <li><strong>UNSURE candidates</strong> — these show up in the "Unsure" section of the evaluate-run summary. A human needs to look at the application and decide.</li>
   <li><strong>Follow-ups</strong> — Chandler sends up to 3 interview invites spaced a few days apart. After the 3rd with no response, the candidate is archived to Never Responded.</li>
-  <li><strong>Offer info for Hire</strong> — Before setting humanDecision to Hire, make sure the Offer Info tab in the candidate's interview questions sheet is filled out (email, cell phone, start date, rate offered). Chandler will alert you in Slack if anything is missing.</li>
+  <li><strong>Offer info for Hire</strong> — Before setting humanDecision to Hire, make sure the Offer Info tab in the candidate's interview questions sheet is filled out (email, cell phone, start date, rate offered). Chandler will list this in the "Action required" section of the act-run summary if anything is missing.</li>
 </ul>
 
 </body>
