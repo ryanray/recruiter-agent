@@ -42,7 +42,7 @@ try {
     console.log(`[Act] Moved to Never Responded: ${neverResponded.join(', ')}`);
   }
   if (humanReviewFlagged.length > 0) {
-    console.log(`[Act] Flagged for human review: ${humanReviewFlagged.join(', ')}`);
+    console.log(`[Act] Flagged for human review: ${humanReviewFlagged.map(f => f.name).join(', ')}`);
   }
   console.log('\n[Act] Complete.');
   await slack.post(config.slack.recruiting_channel, formatActSummary({ actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders }));
