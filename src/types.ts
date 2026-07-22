@@ -124,6 +124,7 @@ export interface RunCandidateResult {
   tier?: string;
   reason?: string;
   unclearField?: string;
+  indeedUrl?: string;
 }
 
 export interface RunBookingResult {
@@ -143,6 +144,40 @@ export interface RunError {
   action: string;
 }
 
+export interface HumanReviewFlag {
+  name: string;
+  otherJobCount: number;
+  indeedUrl: string;
+}
+
+export interface PreviouslyContactedFlag {
+  name: string;
+  lastSeen: string;
+  indeedUrl: string;
+}
+
+export interface BookedInterviewNotice {
+  name: string;
+  scheduledAt: string;
+  score?: string;
+  tier?: string;
+  indeedUrl: string;
+  driveFolder?: string;
+}
+
+export interface HoldNotice {
+  name: string;
+  agentRecommendation: string;
+  notes: string;
+  indeedUrl: string;
+}
+
+export interface ActionRequiredItem {
+  name: string;
+  issue: string;
+  link?: string;
+}
+
 export interface RunResult {
   startedAt: Date;
   completedAt: Date;
@@ -159,8 +194,11 @@ export interface RunResult {
   scoreFailures: string[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
-  humanReviewFlagged: string[];
+  humanReviewFlagged: HumanReviewFlag[];
+  previouslyContacted: PreviouslyContactedFlag[];
   autoRejected: RunCandidateResult[];
+  holds: HoldNotice[];
+  actionRequired: ActionRequiredItem[];
   configVersion: string;
   screeningCriteria: {
     required: string[];

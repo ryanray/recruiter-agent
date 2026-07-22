@@ -18,7 +18,7 @@ The agent has two phases you can run independently:
 | `Approve` | Sends the interview invite on Indeed, moves Drive folder to recruiting root, updates row to "Screened - Invite Sent" |
 | `Reject` | Marks sentiment "no" on Indeed (Indeed sends its automated follow-up), moves Drive folder to _Rejected, moves row to Rejected tab |
 | `Checkback Later` | Moves Drive folder to _Checkback Later, moves row to Checkback Later tab |
-| `Hold` | Posts a Slack alert for manual review |
+| `Hold` | Listed under "Held for review" in the act-run Slack summary |
 | `Hire` | Validates the Offer Info tab in the candidate's interview sheet, sets Indeed status to Hired, moves row to Hired tab, adds the hire to the Tracker tab |
 | `None` / `Do Not Contact` | No action |
 
@@ -139,7 +139,7 @@ screening:
     - home_care_experience
 ```
 
-A candidate is flagged as **urgent** (Slack alert fires immediately) if they have a CNA certification and 1+ year of direct care experience.
+A candidate is flagged as **urgent** if they have a CNA certification and 1+ year of direct care experience.
 
 ## Spreadsheet columns
 

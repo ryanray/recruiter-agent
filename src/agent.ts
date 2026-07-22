@@ -1,6 +1,6 @@
 import type {
   IndeedAdapter, SheetsAdapter, DriveAdapter, SlackAdapter,
-  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType,
+  Screener, Scorer, Config, RunResult, CandidateRow, CandidateStatus, OfferInfo, EventType, HumanReviewFlag, BookedInterviewNotice, HoldNotice, ActionRequiredItem,
 } from './types.js';
 import { extractPdfText } from './pdf.js';
 import { renderTemplate } from './messages.js';
@@ -31,7 +31,10 @@ export class Agent {
       pdfFailures: [], scoreFailures: [],
       followUpsSent: [], neverResponded: [],
       humanReviewFlagged: [],
+      previouslyContacted: [],
       autoRejected: [],
+      holds: [],
+      actionRequired: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
         required: this.config.screening.required,
@@ -100,11 +103,11 @@ export class Agent {
           };
           await this.sheets.addCandidate('Active', row);
           await this.safeLogEvent(applicant.name, 'applicant_added');
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `⚠️ *Human review needed:* ${applicant.name} has applied to ${profileFetchResult.otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${applicant.indeedProfileUrl}|View in Indeed>`
-          );
-          result.humanReviewFlagged.push(applicant.name);
+          result.humanReviewFlagged.push({
+            name: applicant.name,
+            otherJobCount: profileFetchResult.otherJobCount,
+            indeedUrl: applicant.indeedProfileUrl,
+          });
           markProcessed(applicant.id);
           continue;
         }
@@ -112,10 +115,11 @@ export class Agent {
         const priorContact = priorContactMap.get(applicant.name.toLowerCase());
         if (priorContact) {
           console.log(`[Agent] ${applicant.name} was previously contacted on ${priorContact} — flagging for human review.`);
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `⚠️ *Previously contacted:* ${applicant.name} — last seen ${priorContact}\n<${applicant.indeedProfileUrl}|View in Indeed>`
-          );
+          result.previouslyContacted.push({
+            name: applicant.name,
+            lastSeen: priorContact,
+            indeedUrl: applicant.indeedProfileUrl,
+          });
         }
 
         console.log(`[Agent] Screening ${applicant.name} with Claude...`);
@@ -241,11 +245,8 @@ export class Agent {
             score: score.score,
             tier: score.tier,
             unclearField: screening.reasons.join('; '),
+            indeedUrl: applicant.indeedProfileUrl,
           });
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `❓ *Review needed:* ${applicant.name} — ${screening.reasons.join('; ')}\n<${applicant.indeedProfileUrl}|View in Indeed>`
-          );
         }
 
         console.log(`[Agent] Done with ${applicant.name}.`);
@@ -267,8 +268,14 @@ export class Agent {
     return result;
   }
 
-  async processPendingDecisions(): Promise<{ actioned: { name: string; decision: string }[] }> {
+  async processPendingDecisions(): Promise<{
+    actioned: { name: string; decision: string }[];
+    holds: HoldNotice[];
+    actionRequired: ActionRequiredItem[];
+  }> {
     const actioned: { name: string; decision: string }[] = [];
+    const holds: HoldNotice[] = [];
+    const actionRequired: ActionRequiredItem[] = [];
     const candidates = await this.sheets.getCandidatesForAction();
     console.log(`\n[Agent] ${candidates.length} candidate(s) with pending human decisions.`);
 
@@ -357,12 +364,14 @@ export class Agent {
           await this.sheets.moveCandidate(candidate.name, 'Active', 'Checkback Later');
 
         } else if (decision === 'hold') {
-          console.log(`[Agent] Clearing humanDecision for ${candidate.name} and posting Slack alert...`);
+          console.log(`[Agent] Clearing humanDecision for ${candidate.name} (Hold — flagged in run summary)...`);
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
-          await this.slack.post(
-            this.config.slack.recruiting_channel,
-            `🚩 *Hold for review:* ${candidate.name} — Agent: ${candidate.agentRecommendation}\n${candidate.notes}\n<${candidate.indeedUrl}|View in Indeed>`
-          );
+          holds.push({
+            name: candidate.name,
+            agentRecommendation: candidate.agentRecommendation,
+            notes: candidate.notes,
+            indeedUrl: candidate.indeedUrl,
+          });
         } else if (decision === 'hire') {
           console.log(`[Agent] Clearing humanDecision for ${candidate.name}...`);
           await this.sheets.updateCandidateStatus(candidate.name, candidate.status, { humanDecision: 'None' });
@@ -383,10 +392,10 @@ export class Agent {
 
           if (!spreadsheet) {
             console.warn(`[Agent] No spreadsheet found in folder for ${candidate.name} — skipping Offer Info check.`);
-            await this.slack.post(
-              this.config.slack.recruiting_channel,
-              `@here Action required: could not find interview questions sheet for ${candidate.name}. Please verify their Drive folder.`
-            );
+            actionRequired.push({
+              name: candidate.name,
+              issue: 'could not find interview questions sheet — please verify their Drive folder',
+            });
           } else {
             console.log(`[Agent] Reading Offer Info tab...`);
             offerInfo = await this.sheets.readOfferInfo(spreadsheet.id);
@@ -394,10 +403,11 @@ export class Agent {
             if (missingFields.length > 0) {
               console.warn(`[Agent] Missing offer info for ${candidate.name}: ${missingFields.join(', ')}`);
               const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheet.id}/edit`;
-              await this.slack.post(
-                this.config.slack.recruiting_channel,
-                `@here Action required: missing offer info for ${candidate.name} (${missingFields.join(', ')}). <${sheetUrl}|Click here>`
-              );
+              actionRequired.push({
+                name: candidate.name,
+                issue: `missing offer info (${missingFields.join(', ')})`,
+                link: sheetUrl,
+              });
             } else {
               console.log(`[Agent] Offer info valid — start date: ${offerInfo.startDate}, rate: $${offerInfo.rateOffered}/hr`);
             }
@@ -437,17 +447,17 @@ export class Agent {
         console.error(`[Agent] Error acting on ${candidate.name}: ${err instanceof Error ? err.message : err}`);
       }
     }
-    return { actioned };
+    return { actioned, holds, actionRequired };
   }
 
-  async processBookedInterviews(): Promise<{ newlyBooked: { name: string; scheduledAt: string }[] }> {
+  async processBookedInterviews(): Promise<{ newlyBooked: BookedInterviewNotice[] }> {
     console.log('\n[Agent] Checking for booked interviews...');
     const interviews = await this.indeed.getBookedInterviews();
     console.log(`[Agent] ${interviews.length} booked interview(s) found on Indeed.`);
 
     const activeCandidates = await this.sheets.getActiveCandidates();
     const byIndeedId = new Map(activeCandidates.map(c => [c.indeedId, c]));
-    const newlyBooked: { name: string; scheduledAt: string }[] = [];
+    const newlyBooked: BookedInterviewNotice[] = [];
 
     for (const interview of interviews) {
       const candidate = byIndeedId.get(interview.applicantId);
@@ -461,11 +471,14 @@ export class Agent {
       }
       console.log(`[Agent] Interview booked: ${candidate.name} — ${interview.scheduledAt}`);
       await this.sheets.updateCandidateStatus(candidate.name, 'Interview Scheduled', { lastContact: today(), interviewScheduledAt: today() });
-      await this.slack.post(
-        this.config.slack.recruiting_channel,
-        `🗓 *Interview scheduled:* ${candidate.name} — ${interview.scheduledAt}${candidate.score ? `  |  Score: ${candidate.score}/100 (${candidate.scoreTier})` : ''}\n<${candidate.indeedUrl}|Open on Indeed>${candidate.driveFolder ? `  |  <${candidate.driveFolder}|Open on Google Drive>` : ''}`
-      );
-      newlyBooked.push({ name: candidate.name, scheduledAt: interview.scheduledAt });
+      newlyBooked.push({
+        name: candidate.name,
+        scheduledAt: interview.scheduledAt,
+        score: candidate.score,
+        tier: candidate.scoreTier,
+        indeedUrl: candidate.indeedUrl,
+        driveFolder: candidate.driveFolder,
+      });
     }
     return { newlyBooked };
   }
@@ -554,7 +567,7 @@ export class Agent {
     return { processed, inPersonReminders };
   }
 
-  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: string[] }> {
+  async processFollowUps(): Promise<{ followUpsSent: { name: string; inviteCount: number }[]; neverResponded: string[]; humanReviewFlagged: HumanReviewFlag[] }> {
     console.log('\n[Agent] Checking for candidates needing follow-up...');
     const candidates = await this.sheets.getActiveCandidates();
     const pending = candidates.filter(c => c.status === 'Screened - Invite Sent');
@@ -562,7 +575,7 @@ export class Agent {
 
     const followUpsSent: { name: string; inviteCount: number }[] = [];
     const neverResponded: string[] = [];
-    const humanReviewFlagged: string[] = [];
+    const humanReviewFlagged: HumanReviewFlag[] = [];
     const thresholdDays = this.config.scheduling.follow_up_days;
 
     for (const candidate of pending) {
@@ -587,11 +600,11 @@ export class Agent {
           if (otherJobCount > 0) {
             console.log(`[Agent] ${candidate.name} has applied to ${otherJobCount} other job(s) — flagging for human review instead of sending follow-up.`);
             await this.sheets.updateCandidateStatus(candidate.name, 'Human Review');
-            await this.slack.post(
-              this.config.slack.recruiting_channel,
-              `⚠️ *Human review needed:* ${candidate.name} has applied to ${otherJobCount} other job(s) on this account. Please review and decide how to proceed.\n<${candidate.indeedUrl}|View in Indeed>`
-            );
-            humanReviewFlagged.push(candidate.name);
+            humanReviewFlagged.push({
+              name: candidate.name,
+              otherJobCount,
+              indeedUrl: candidate.indeedUrl,
+            });
             continue;
           }
         } catch (profileErr) {
@@ -653,7 +666,9 @@ export class Agent {
     markProcessed: (id: string) => void = () => {},
   ): Promise<RunResult> {
     const result = await this.evaluateCandidates(since, processedIds, markProcessed);
-    await this.processPendingDecisions();
+    const { holds, actionRequired } = await this.processPendingDecisions();
+    result.holds = holds;
+    result.actionRequired = actionRequired;
     return result;
   }
 

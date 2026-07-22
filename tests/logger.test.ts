@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatRunLog } from '../src/logger.js';
+import { formatRunLog, formatCandidateSummary, formatActSummary } from '../src/logger.js';
 import type { RunResult } from '../src/types.js';
 
 function makeResult(overrides: Partial<RunResult> = {}): RunResult {
@@ -20,6 +20,10 @@ function makeResult(overrides: Partial<RunResult> = {}): RunResult {
     followUpsSent: [],
     neverResponded: [],
     humanReviewFlagged: [],
+    previouslyContacted: [],
+    autoRejected: [],
+    holds: [],
+    actionRequired: [],
     configVersion: 'abc1234',
     screeningCriteria: {
       required: ['within_20_miles_south_jordan', 'valid_license_and_transportation'],
@@ -65,5 +69,140 @@ describe('formatRunLog', () => {
     const log = formatRunLog(result);
     expect(log).toContain('Drive folder failed for Jane');
     expect(log).toContain('Permission denied');
+  });
+
+  it('renders human review flags with other-job count', () => {
+    const log = formatRunLog(makeResult({
+      humanReviewFlagged: [{ name: 'Multi Job', otherJobCount: 2, indeedUrl: 'https://employers.indeed.com/candidates/view?id=x' }],
+    }));
+    expect(log).toContain('Multi Job — applied to 2 other job(s)');
+  });
+});
+
+describe('formatCandidateSummary', () => {
+  it('renders human review flags with count and Indeed link', () => {
+    const msg = formatCandidateSummary(makeResult({
+      humanReviewFlagged: [{ name: 'Multi Job', otherJobCount: 2, indeedUrl: 'https://employers.indeed.com/candidates/view?id=x' }],
+    }));
+    expect(msg).toContain('*Flagged for Human Review (1):*');
+    expect(msg).toContain('Multi Job — applied to 2 other job(s)  <https://employers.indeed.com/candidates/view?id=x|View in Indeed>');
+  });
+
+  it('renders unsure entries with an Indeed link', () => {
+    const msg = formatCandidateSummary(makeResult({
+      unsure: [{ name: 'Jane Doe', location: '', experience: '', certifications: '', unclearField: 'Cannot determine distance', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('? Jane Doe — Cannot determine distance');
+    expect(msg).toContain('<https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+  });
+
+  it('renders previously contacted section with last-seen date and link', () => {
+    const msg = formatCandidateSummary(makeResult({
+      previouslyContacted: [{ name: 'Jane Doe', lastSeen: '2026-05-01', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('*Previously contacted (1):*');
+    expect(msg).toContain('Jane Doe — last seen 2026-05-01  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+  });
+
+  it('starts with <!here> and an Action required section when actionRequired is non-empty', () => {
+    const msg = formatCandidateSummary(makeResult({
+      actionRequired: [{ name: 'Ray, Ryan', issue: 'missing offer info (start date)', link: 'https://docs.google.com/spreadsheets/d/abc/edit' }],
+    }));
+    expect(msg.startsWith('<!here>')).toBe(true);
+    expect(msg).toContain('*🚨 Action required (1):*');
+    expect(msg).toContain('Ray, Ryan — missing offer info (start date)  <https://docs.google.com/spreadsheets/d/abc/edit|Open sheet>');
+  });
+
+  it('renders a held-for-review section when holds is non-empty', () => {
+    const msg = formatCandidateSummary(makeResult({
+      holds: [{ name: 'Jane Doe', agentRecommendation: 'UNSURE', notes: 'Cannot determine distance', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('*🚩 Held for review (1):*');
+    expect(msg).toContain('Jane Doe — Agent: UNSURE — Cannot determine distance  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+  });
+
+  it('omits <!here> and both sections when holds and actionRequired are empty', () => {
+    const msg = formatCandidateSummary(makeResult());
+    expect(msg).not.toContain('<!here>');
+    expect(msg).not.toContain('Action required');
+    expect(msg).not.toContain('Held for review');
+  });
+});
+
+function makeActParams(overrides: Partial<Parameters<typeof formatActSummary>[0]> = {}): Parameters<typeof formatActSummary>[0] {
+  return {
+    actioned: [],
+    holds: [],
+    actionRequired: [],
+    newlyBooked: [],
+    followUpsSent: [],
+    neverResponded: [],
+    humanReviewFlagged: [],
+    interviewResultsProcessed: [],
+    inPersonReminders: [],
+    ...overrides,
+  };
+}
+
+describe('formatActSummary', () => {
+  it('renders booked interviews with score and links', () => {
+    const msg = formatActSummary(makeActParams({
+      newlyBooked: [{
+        name: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+        score: '82', tier: 'Tier 1',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+        driveFolder: 'https://drive.google.com/drive/folders/folder-1',
+      }],
+    }));
+    expect(msg).toContain('*Interviews booked (1):*');
+    expect(msg).toContain('Jane Doe — Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)  |  82/100 (Tier 1)');
+    expect(msg).toContain('<https://employers.indeed.com/candidates/view?id=app-1|Open on Indeed>');
+    expect(msg).toContain('<https://drive.google.com/drive/folders/folder-1|Open on Google Drive>');
+  });
+
+  it('omits score and Drive link when absent', () => {
+    const msg = formatActSummary(makeActParams({
+      newlyBooked: [{
+        name: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      }],
+    }));
+    expect(msg).toContain('Jane Doe — Thursday, June 5, 2026  |  <https://employers.indeed.com/candidates/view?id=app-1|Open on Indeed>');
+    expect(msg).not.toContain('/100');
+    expect(msg).not.toContain('Google Drive');
+  });
+
+  it('starts with <!here> and an Action required section when actionRequired is non-empty', () => {
+    const msg = formatActSummary(makeActParams({
+      actionRequired: [{ name: 'Ray, Ryan', issue: 'missing offer info (start date)', link: 'https://docs.google.com/spreadsheets/d/abc/edit' }],
+    }));
+    expect(msg.startsWith('<!here>')).toBe(true);
+    expect(msg).toContain('🚨 Action required (1)');
+    expect(msg).toContain('Ray, Ryan — missing offer info (start date)  <https://docs.google.com/spreadsheets/d/abc/edit|Open sheet>');
+  });
+
+  it('omits <!here> and still reports nothing to act on when everything is empty', () => {
+    const msg = formatActSummary(makeActParams());
+    expect(msg).not.toContain('<!here>');
+    expect(msg).toContain('_Nothing to act on._');
+  });
+
+  it('renders holds with recommendation, notes, and Indeed link', () => {
+    const msg = formatActSummary(makeActParams({
+      holds: [{ name: 'Jane Doe', agentRecommendation: 'UNSURE', notes: 'Cannot determine distance', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('*🚩 Held for review (1):*');
+    expect(msg).toContain('Jane Doe — Agent: UNSURE — Cannot determine distance  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+    expect(msg).not.toContain('_Nothing to act on._');
+  });
+
+  it('renders a hold with no notes without a dangling dash', () => {
+    const msg = formatActSummary(makeActParams({
+      holds: [{ name: 'Jane Doe', agentRecommendation: 'UNSURE', notes: '', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('• Jane Doe — Agent: UNSURE  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+    expect(msg).not.toContain('UNSURE — ');
   });
 });

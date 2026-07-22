@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { createWriteStream, mkdirSync } from 'fs';
 import { join } from 'path';
-import type { RunResult } from './types.js';
+import type { RunResult, HumanReviewFlag, BookedInterviewNotice, HoldNotice, ActionRequiredItem } from './types.js';
 
 export function startFileLog(label: string): () => void {
   mkdirSync('logs', { recursive: true });
@@ -99,8 +99,8 @@ export function formatRunLog(result: RunResult): string {
 
   if (result.humanReviewFlagged.length > 0) {
     lines.push('', `HUMAN REVIEW FLAGGED (${result.humanReviewFlagged.length})`);
-    for (const name of result.humanReviewFlagged) {
-      lines.push(`  ⚠️ ${name} — applied to multiple jobs, awaiting human decision`);
+    for (const f of result.humanReviewFlagged) {
+      lines.push(`  ⚠️ ${f.name} — applied to ${f.otherJobCount} other job(s), awaiting human decision`);
     }
   }
 
@@ -120,10 +120,18 @@ export function formatCandidateSummary(result: RunResult): string {
   const totalSecs = Math.round(result.durationMs / 1000);
   const mins = Math.floor(totalSecs / 60);
   const secs = totalSecs % 60;
+  const header = `*Chandler — Evaluate Run* (${timestamp} UTC, ${mins}m ${secs}s)`;
   const lines: string[] = [
-    `*Chandler — Evaluate Run* (${timestamp} UTC, ${mins}m ${secs}s)`,
+    result.actionRequired.length > 0 ? `<!here> ${header}` : header,
     `*New applicants reviewed:* ${result.newApplicantsReviewed}  |  Remaining: ${result.remainingApplicants}`,
   ];
+
+  if (result.actionRequired.length > 0) {
+    lines.push(`\n*🚨 Action required (${result.actionRequired.length}):*`);
+    for (const a of result.actionRequired) {
+      lines.push(`  • ${a.name} — ${a.issue}${a.link ? `  <${a.link}|Open sheet>` : ''}`);
+    }
+  }
 
   if (result.passed.length > 0) {
     lines.push(`\n*Passed (${result.passed.length}):*`);
@@ -136,7 +144,8 @@ export function formatCandidateSummary(result: RunResult): string {
     lines.push(`\n*Unsure — needs review (${result.unsure.length}):*`);
     for (const c of result.unsure) {
       const scoreStr = c.score != null ? `  ${c.score}/100 (${c.tier})` : '';
-      lines.push(`  ? ${c.name} — ${c.unclearField}${scoreStr}`);
+      const linkStr = c.indeedUrl ? `  <${c.indeedUrl}|View in Indeed>` : '';
+      lines.push(`  ? ${c.name} — ${c.unclearField}${scoreStr}${linkStr}`);
     }
   }
   if (result.rejected.length > 0) {
@@ -148,12 +157,27 @@ export function formatCandidateSummary(result: RunResult): string {
   }
   if (result.humanReviewFlagged.length > 0) {
     lines.push(`\n*Flagged for Human Review (${result.humanReviewFlagged.length}):*`);
-    for (const name of result.humanReviewFlagged) lines.push(`  ⚠️ ${name}`);
+    for (const f of result.humanReviewFlagged) {
+      lines.push(`  ⚠️ ${f.name} — applied to ${f.otherJobCount} other job(s)  <${f.indeedUrl}|View in Indeed>`);
+    }
   }
   if (result.autoRejected.length > 0) {
     lines.push(`\n*Auto-rejected — score below threshold (${result.autoRejected.length}):*`);
     for (const c of result.autoRejected) {
       lines.push(`  ✗ ${c.name} — ${c.score}/100 (${c.tier})`);
+    }
+  }
+  if (result.holds.length > 0) {
+    lines.push(`\n*🚩 Held for review (${result.holds.length}):*`);
+    for (const h of result.holds) {
+      const notesStr = h.notes ? ` — ${h.notes}` : '';
+      lines.push(`  • ${h.name} — Agent: ${h.agentRecommendation}${notesStr}  <${h.indeedUrl}|View in Indeed>`);
+    }
+  }
+  if (result.previouslyContacted.length > 0) {
+    lines.push(`\n*Previously contacted (${result.previouslyContacted.length}):*`);
+    for (const p of result.previouslyContacted) {
+      lines.push(`  • ${p.name} — last seen ${p.lastSeen}  <${p.indeedUrl}|View in Indeed>`);
     }
   }
   if (result.errors.length > 0) {
@@ -168,16 +192,26 @@ export function formatCandidateSummary(result: RunResult): string {
 
 export function formatActSummary(params: {
   actioned: { name: string; decision: string }[];
-  newlyBooked: { name: string; scheduledAt: string }[];
+  holds: HoldNotice[];
+  actionRequired: ActionRequiredItem[];
+  newlyBooked: BookedInterviewNotice[];
   followUpsSent: { name: string; inviteCount: number }[];
   neverResponded: string[];
-  humanReviewFlagged: string[];
+  humanReviewFlagged: HumanReviewFlag[];
   interviewResultsProcessed: { name: string; result: string; action: string }[];
   inPersonReminders: string[];
 }): string {
-  const { actioned, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders } = params;
+  const { actioned, holds, actionRequired, newlyBooked, followUpsSent, neverResponded, humanReviewFlagged, interviewResultsProcessed, inPersonReminders } = params;
   const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-  const lines: string[] = [`*Chandler — Act Run* (${timestamp} UTC)`];
+  const header = `*Chandler — Act Run* (${timestamp} UTC)`;
+  const lines: string[] = actionRequired.length > 0 ? [`<!here> ${header}`] : [header];
+
+  if (actionRequired.length > 0) {
+    lines.push(`\n*🚨 Action required (${actionRequired.length}):*`);
+    for (const a of actionRequired) {
+      lines.push(`  • ${a.name} — ${a.issue}${a.link ? `  <${a.link}|Open sheet>` : ''}`);
+    }
+  }
 
   if (actioned.length > 0) {
     lines.push(`\n*Decisions processed (${actioned.length}):*`);
@@ -186,7 +220,20 @@ export function formatActSummary(params: {
 
   if (newlyBooked.length > 0) {
     lines.push(`\n*Interviews booked (${newlyBooked.length}):*`);
-    for (const b of newlyBooked) lines.push(`  • ${b.name} — ${b.scheduledAt}`);
+    for (const b of newlyBooked) {
+      const scoreStr = b.score ? `  |  ${b.score}/100 (${b.tier})` : '';
+      const links = [`<${b.indeedUrl}|Open on Indeed>`];
+      if (b.driveFolder) links.push(`<${b.driveFolder}|Open on Google Drive>`);
+      lines.push(`  • ${b.name} — ${b.scheduledAt}${scoreStr}  |  ${links.join('  |  ')}`);
+    }
+  }
+
+  if (holds.length > 0) {
+    lines.push(`\n*🚩 Held for review (${holds.length}):*`);
+    for (const h of holds) {
+      const notesStr = h.notes ? ` — ${h.notes}` : '';
+      lines.push(`  • ${h.name} — Agent: ${h.agentRecommendation}${notesStr}  <${h.indeedUrl}|View in Indeed>`);
+    }
   }
 
   if (interviewResultsProcessed.length > 0) {
@@ -215,12 +262,15 @@ export function formatActSummary(params: {
 
   if (humanReviewFlagged.length > 0) {
     lines.push(`\n*Flagged for Human Review (${humanReviewFlagged.length}):*`);
-    for (const name of humanReviewFlagged) lines.push(`  • ${name}`);
+    for (const f of humanReviewFlagged) {
+      lines.push(`  • ${f.name} — applied to ${f.otherJobCount} other job(s)  <${f.indeedUrl}|View in Indeed>`);
+    }
   }
 
   if (actioned.length === 0 && newlyBooked.length === 0 && followUpsSent.length === 0 &&
       neverResponded.length === 0 && humanReviewFlagged.length === 0 &&
-      interviewResultsProcessed.length === 0 && inPersonReminders.length === 0) {
+      interviewResultsProcessed.length === 0 && inPersonReminders.length === 0 &&
+      holds.length === 0 && actionRequired.length === 0) {
     lines.push('\n_Nothing to act on._');
   }
 

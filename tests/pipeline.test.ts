@@ -144,16 +144,16 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
     expect(sheets.tabs['Rejected']).toHaveLength(0);
   });
 
-  it('UNSURE candidate gets Active row and posts Slack alert', async () => {
+  it('UNSURE candidate gets Active row and lands in result.unsure with no individual Slack post', async () => {
     indeed.seedApplicants([makeApplicant()]);
     const agent = new Agent(indeed, sheets, drive, slack, async () => unsureResult('Cannot determine distance'), async () => defaultScore(), config);
 
-    await agent.evaluateCandidates(since, new Set(), () => {});
+    const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
     expect(sheets.tabs['Active'][0].agentRecommendation).toBe('UNSURE');
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].channel).toBe('#recruiting');
-    expect(slack.messages[0].message).toContain('Review needed');
+    expect(slack.messages).toHaveLength(0);
+    expect(result.unsure).toHaveLength(1);
+    expect(result.unsure[0].indeedUrl).toBe('https://employers.indeed.com/candidates/view?id=app-1');
   });
 
   it('urgent PASS candidate still goes to Awaiting Review without a separate Slack alert', async () => {
@@ -360,22 +360,24 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       expect(sheets.tabs['Checkback Later']).toHaveLength(1);
     });
 
-    it('Hold: clears humanDecision first, posts Slack alert, no sentiment change, no folder move', async () => {
+    it('Hold: clears humanDecision, records hold in result, posts no individual Slack message', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', humanDecision: 'Hold', agentRecommendation: 'UNSURE',
         indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
         notes: 'Cannot determine distance',
       }));
 
-      await agent.processPendingDecisions();
+      const { holds } = await agent.processPendingDecisions();
 
       expect(indeed.markedSentiments).toHaveLength(0);
       expect(drive.moves).toHaveLength(0);
-      expect(slack.messages).toHaveLength(1);
-      expect(slack.messages[0].message).toContain('Jane Doe');
-      expect(slack.messages[0].message).toContain('UNSURE');
-      expect(slack.messages[0].message).toContain('Cannot determine distance');
-      expect(slack.messages[0].message).toContain('https://employers.indeed.com/candidates/view?id=app-1');
+      expect(slack.messages).toHaveLength(0);
+      expect(holds).toEqual([{
+        name: 'Jane Doe',
+        agentRecommendation: 'UNSURE',
+        notes: 'Cannot determine distance',
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      }]);
       expect(sheets.tabs['Active'][0].humanDecision).toBe('None');
     });
   });
@@ -395,7 +397,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
     });
 
-    it('updates status, lastContact, and posts Slack when interview is booked', async () => {
+    it('updates status, lastContact, and returns booked notice when interview is booked', async () => {
       sheets.tabs['Active'].push(makeCandidate({
         indeedId: 'app-1', name: 'Jane Doe', status: 'Screened - Invite Sent',
       }));
@@ -405,13 +407,19 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
       }]);
 
-      await agent.processBookedInterviews();
+      const { newlyBooked } = await agent.processBookedInterviews();
 
       expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
       expect(sheets.tabs['Active'][0].lastContact).toBeTruthy();
-      expect(slack.messages).toHaveLength(1);
-      expect(slack.messages[0].message).toContain('Jane Doe');
-      expect(slack.messages[0].message).toContain('Thursday, June 5, 2026');
+      expect(slack.messages).toHaveLength(0);
+      expect(newlyBooked).toEqual([{
+        name: 'Jane Doe',
+        scheduledAt: 'Thursday, June 5, 2026 from 10:00 to 10:15 am (MDT)',
+        score: undefined,
+        tier: undefined,
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+        driveFolder: '',
+      }]);
     });
 
     it('skips candidate already at Interview Scheduled', async () => {
@@ -454,11 +462,12 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
         { applicantId: 'app-2', applicantName: 'John Smith', scheduledAt: 'Friday, June 6, 2026 from 2:00 to 2:15 pm (MDT)' },
       ]);
 
-      await agent.processBookedInterviews();
+      const { newlyBooked } = await agent.processBookedInterviews();
 
       expect(sheets.tabs['Active'][0].status).toBe('Interview Scheduled');
       expect(sheets.tabs['Active'][1].status).toBe('Interview Scheduled');
-      expect(slack.messages).toHaveLength(2);
+      expect(slack.messages).toHaveLength(0);
+      expect(newlyBooked).toHaveLength(2);
     });
   });
 
@@ -476,7 +485,7 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       slack = new FakeSlackAdapter();
     });
 
-    it('flags applicant with prior contact within window: notes prefixed + Slack alert', async () => {
+    it('flags applicant with prior contact within window: notes prefixed + recorded in result', async () => {
       const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
       sheets.previouslyContacted.push({
         name: 'Jane Doe', lastContact: yesterday, notes: 'Rejected', indeedId: 'old-id',
@@ -484,11 +493,14 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant()]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      const priorAlert = slack.messages.find(m => m.message.includes('Previously contacted'));
-      expect(priorAlert).toBeDefined();
-      expect(priorAlert!.message).toContain('Jane Doe');
+      expect(slack.messages).toHaveLength(0);
+      expect(result.previouslyContacted).toEqual([{
+        name: 'Jane Doe',
+        lastSeen: yesterday,
+        indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1',
+      }]);
       expect(sheets.tabs['Active'][0].notes).toMatch(/^\[Previously contacted:/);
     });
 
@@ -499,9 +511,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant()]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      expect(slack.messages.filter(m => m.message.includes('Previously contacted'))).toHaveLength(0);
+      expect(result.previouslyContacted).toHaveLength(0);
       expect(sheets.tabs['Active'][0].notes).not.toContain('[Previously contacted:');
     });
 
@@ -509,9 +521,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant()]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      expect(slack.messages.filter(m => m.message.includes('Previously contacted'))).toHaveLength(0);
+      expect(result.previouslyContacted).toHaveLength(0);
       expect(sheets.tabs['Active'][0].notes).not.toContain('[Previously contacted:');
     });
 
@@ -523,9 +535,9 @@ describe('Agent.run — Phase 1 (screen + Drive + Sheets)', () => {
       indeed.seedApplicants([makeApplicant({ name: 'Jane Doe' })]);
       const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-      await agent.evaluateCandidates(since, new Set(), () => {});
+      const result = await agent.evaluateCandidates(since, new Set(), () => {});
 
-      expect(slack.messages.find(m => m.message.includes('Previously contacted'))).toBeDefined();
+      expect(result.previouslyContacted).toHaveLength(1);
     });
   });
 
@@ -721,7 +733,7 @@ describe('multi-job applicant detection', () => {
     agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
   });
 
-  it('adds Human Review row, posts Slack, populates humanReviewFlagged, skips Drive/scoring', async () => {
+  it('adds Human Review row, records flag in result, posts no individual Slack message', async () => {
     const applicant = makeApplicant({
       id: 'app-multi',
       name: 'Multi Job',
@@ -746,12 +758,13 @@ describe('multi-job applicant detection', () => {
     expect(drive.copies).toHaveLength(0);
     expect(indeed.markedSentiments).toHaveLength(0);
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Multi Job');
-    expect(slack.messages[0].message).toContain('1 other job(s)');
-    expect(slack.messages[0].message).toContain('Human review needed');
+    expect(slack.messages).toHaveLength(0);
 
-    expect(result.humanReviewFlagged).toEqual(['Multi Job']);
+    expect(result.humanReviewFlagged).toEqual([{
+      name: 'Multi Job',
+      otherJobCount: 1,
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-multi',
+    }]);
   });
 
   it('normal candidate (otherJobCount=0) still goes through full pipeline', async () => {
@@ -774,7 +787,7 @@ describe('multi-job applicant detection', () => {
     }));
     indeed.multiJobApplicantIds.add('app-fu');
 
-    const { followUpsSent } = await agent.processFollowUps();
+    const { followUpsSent, humanReviewFlagged } = await agent.processFollowUps();
 
     expect(followUpsSent).toHaveLength(0);
     expect(indeed.interviewsSetUp).toHaveLength(0);
@@ -782,9 +795,12 @@ describe('multi-job applicant detection', () => {
     const row = sheets.tabs['Active'].find(c => c.name === 'Follow Up Person');
     expect(row!.status).toBe('Human Review');
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Follow Up Person');
-    expect(slack.messages[0].message).toContain('Human review needed');
+    expect(slack.messages).toHaveLength(0);
+    expect(humanReviewFlagged).toEqual([{
+      name: 'Follow Up Person',
+      otherJobCount: 1,
+      indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-fu',
+    }]);
   });
 
   it('processFollowUps still sends follow-up when candidate has not applied to other jobs', async () => {
@@ -875,17 +891,18 @@ describe('Agent — hire decision', () => {
     expect(slack.messages).toHaveLength(0);
   });
 
-  it('posts Slack @here alert when offer info has missing fields, hire still completes', async () => {
+  it('records action-required item when offer info has missing fields, hire still completes', async () => {
     sheets.tabs['Active'].push(makeHireCandidate());
     sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ email: '', cellPhone: '' }));
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('@here');
-    expect(slack.messages[0].message).toContain('Ray, Ryan');
-    expect(slack.messages[0].message).toContain('Click here');
+    expect(slack.messages).toHaveLength(0);
+    expect(actionRequired).toHaveLength(1);
+    expect(actionRequired[0].name).toBe('Ray, Ryan');
+    expect(actionRequired[0].issue).toContain('missing offer info');
+    expect(actionRequired[0].link).toBe('https://docs.google.com/spreadsheets/d/fake-sheet-id/edit');
     expect(sheets.tabs['Hired']).toHaveLength(1);
     expect(sheets.trackerRows).toHaveLength(1);
   });
@@ -895,10 +912,10 @@ describe('Agent — hire decision', () => {
     sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ rateOffered: '17', justification: '' }));
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('justification');
+    expect(actionRequired).toHaveLength(1);
+    expect(actionRequired[0].issue).toContain('justification');
   });
 
   it('does not flag justification as missing when rate is exactly 16', async () => {
@@ -906,20 +923,24 @@ describe('Agent — hire decision', () => {
     sheets.offerInfoBySpreadsheetId.set('fake-sheet-id', makeOfferInfo({ rateOffered: '16', justification: '' }));
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
+    expect(actionRequired).toHaveLength(0);
     expect(slack.messages).toHaveLength(0);
   });
 
-  it('posts Slack alert about missing sheet when no spreadsheet found in folder, hire still completes', async () => {
+  it('records action-required item about missing sheet when no spreadsheet found in folder, hire still completes', async () => {
     sheets.tabs['Active'].push(makeHireCandidate());
     drive.spreadsheetInFolder = null;
     const agent = new Agent(indeed, sheets, drive, slack, async () => passResult(), async () => defaultScore(), config);
 
-    await agent.processPendingDecisions();
+    const { actionRequired } = await agent.processPendingDecisions();
 
-    expect(slack.messages).toHaveLength(1);
-    expect(slack.messages[0].message).toContain('Ray, Ryan');
+    expect(slack.messages).toHaveLength(0);
+    expect(actionRequired).toEqual([{
+      name: 'Ray, Ryan',
+      issue: 'could not find interview questions sheet — please verify their Drive folder',
+    }]);
     expect(sheets.tabs['Hired']).toHaveLength(1);
     expect(sheets.trackerRows).toContainEqual({ lastName: 'Ray', firstName: 'Ryan', startDate: '' });
   });
