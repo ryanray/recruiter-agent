@@ -197,6 +197,8 @@ export interface RunResult {
   humanReviewFlagged: HumanReviewFlag[];
   previouslyContacted: PreviouslyContactedFlag[];
   autoRejected: RunCandidateResult[];
+  holds: HoldNotice[];
+  actionRequired: ActionRequiredItem[];
   configVersion: string;
   screeningCriteria: {
     required: string[];

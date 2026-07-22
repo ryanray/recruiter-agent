@@ -22,6 +22,8 @@ function makeResult(overrides: Partial<RunResult> = {}): RunResult {
     humanReviewFlagged: [],
     previouslyContacted: [],
     autoRejected: [],
+    holds: [],
+    actionRequired: [],
     configVersion: 'abc1234',
     screeningCriteria: {
       required: ['within_20_miles_south_jordan', 'valid_license_and_transportation'],
@@ -101,9 +103,33 @@ describe('formatCandidateSummary', () => {
     expect(msg).toContain('*Previously contacted (1):*');
     expect(msg).toContain('Jane Doe — last seen 2026-05-01  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
   });
+
+  it('starts with <!here> and an Action required section when actionRequired is non-empty', () => {
+    const msg = formatCandidateSummary(makeResult({
+      actionRequired: [{ name: 'Ray, Ryan', issue: 'missing offer info (start date)', link: 'https://docs.google.com/spreadsheets/d/abc/edit' }],
+    }));
+    expect(msg.startsWith('<!here>')).toBe(true);
+    expect(msg).toContain('*🚨 Action required (1):*');
+    expect(msg).toContain('Ray, Ryan — missing offer info (start date)  <https://docs.google.com/spreadsheets/d/abc/edit|Open sheet>');
+  });
+
+  it('renders a held-for-review section when holds is non-empty', () => {
+    const msg = formatCandidateSummary(makeResult({
+      holds: [{ name: 'Jane Doe', agentRecommendation: 'UNSURE', notes: 'Cannot determine distance', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('*🚩 Held for review (1):*');
+    expect(msg).toContain('Jane Doe — Agent: UNSURE — Cannot determine distance  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+  });
+
+  it('omits <!here> and both sections when holds and actionRequired are empty', () => {
+    const msg = formatCandidateSummary(makeResult());
+    expect(msg).not.toContain('<!here>');
+    expect(msg).not.toContain('Action required');
+    expect(msg).not.toContain('Held for review');
+  });
 });
 
-function makeActParams(overrides: Record<string, unknown> = {}) {
+function makeActParams(overrides: Partial<Parameters<typeof formatActSummary>[0]> = {}): Parameters<typeof formatActSummary>[0] {
   return {
     actioned: [],
     holds: [],
@@ -170,5 +196,13 @@ describe('formatActSummary', () => {
     expect(msg).toContain('*🚩 Held for review (1):*');
     expect(msg).toContain('Jane Doe — Agent: UNSURE — Cannot determine distance  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
     expect(msg).not.toContain('_Nothing to act on._');
+  });
+
+  it('renders a hold with no notes without a dangling dash', () => {
+    const msg = formatActSummary(makeActParams({
+      holds: [{ name: 'Jane Doe', agentRecommendation: 'UNSURE', notes: '', indeedUrl: 'https://employers.indeed.com/candidates/view?id=app-1' }],
+    }));
+    expect(msg).toContain('• Jane Doe — Agent: UNSURE  <https://employers.indeed.com/candidates/view?id=app-1|View in Indeed>');
+    expect(msg).not.toContain('UNSURE — ');
   });
 });

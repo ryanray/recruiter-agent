@@ -120,10 +120,18 @@ export function formatCandidateSummary(result: RunResult): string {
   const totalSecs = Math.round(result.durationMs / 1000);
   const mins = Math.floor(totalSecs / 60);
   const secs = totalSecs % 60;
+  const header = `*Chandler — Evaluate Run* (${timestamp} UTC, ${mins}m ${secs}s)`;
   const lines: string[] = [
-    `*Chandler — Evaluate Run* (${timestamp} UTC, ${mins}m ${secs}s)`,
+    result.actionRequired.length > 0 ? `<!here> ${header}` : header,
     `*New applicants reviewed:* ${result.newApplicantsReviewed}  |  Remaining: ${result.remainingApplicants}`,
   ];
+
+  if (result.actionRequired.length > 0) {
+    lines.push(`\n*🚨 Action required (${result.actionRequired.length}):*`);
+    for (const a of result.actionRequired) {
+      lines.push(`  • ${a.name} — ${a.issue}${a.link ? `  <${a.link}|Open sheet>` : ''}`);
+    }
+  }
 
   if (result.passed.length > 0) {
     lines.push(`\n*Passed (${result.passed.length}):*`);
@@ -157,6 +165,13 @@ export function formatCandidateSummary(result: RunResult): string {
     lines.push(`\n*Auto-rejected — score below threshold (${result.autoRejected.length}):*`);
     for (const c of result.autoRejected) {
       lines.push(`  ✗ ${c.name} — ${c.score}/100 (${c.tier})`);
+    }
+  }
+  if (result.holds.length > 0) {
+    lines.push(`\n*🚩 Held for review (${result.holds.length}):*`);
+    for (const h of result.holds) {
+      const notesStr = h.notes ? ` — ${h.notes}` : '';
+      lines.push(`  • ${h.name} — Agent: ${h.agentRecommendation}${notesStr}  <${h.indeedUrl}|View in Indeed>`);
     }
   }
   if (result.previouslyContacted.length > 0) {
@@ -213,18 +228,18 @@ export function formatActSummary(params: {
     }
   }
 
-  if (interviewResultsProcessed.length > 0) {
-    lines.push(`\n*Interview results actioned (${interviewResultsProcessed.length}):*`);
-    for (const r of interviewResultsProcessed) {
-      lines.push(`  • ${r.name} — ${r.result} → ${r.action}`);
-    }
-  }
-
   if (holds.length > 0) {
     lines.push(`\n*🚩 Held for review (${holds.length}):*`);
     for (const h of holds) {
       const notesStr = h.notes ? ` — ${h.notes}` : '';
       lines.push(`  • ${h.name} — Agent: ${h.agentRecommendation}${notesStr}  <${h.indeedUrl}|View in Indeed>`);
+    }
+  }
+
+  if (interviewResultsProcessed.length > 0) {
+    lines.push(`\n*Interview results actioned (${interviewResultsProcessed.length}):*`);
+    for (const r of interviewResultsProcessed) {
+      lines.push(`  • ${r.name} — ${r.result} → ${r.action}`);
     }
   }
 

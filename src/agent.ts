@@ -33,6 +33,8 @@ export class Agent {
       humanReviewFlagged: [],
       previouslyContacted: [],
       autoRejected: [],
+      holds: [],
+      actionRequired: [],
       configVersion: getGitCommitHash(),
       screeningCriteria: {
         required: this.config.screening.required,
@@ -664,7 +666,9 @@ export class Agent {
     markProcessed: (id: string) => void = () => {},
   ): Promise<RunResult> {
     const result = await this.evaluateCandidates(since, processedIds, markProcessed);
-    await this.processPendingDecisions();
+    const { holds, actionRequired } = await this.processPendingDecisions();
+    result.holds = holds;
+    result.actionRequired = actionRequired;
     return result;
   }
 
