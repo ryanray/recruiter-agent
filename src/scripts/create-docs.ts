@@ -341,7 +341,7 @@ Location: [location from Indeed]</pre>
   </tr>
 </table>
 
-<p>A candidate gets <strong>PASS</strong> only if all required rules pass. One FAIL anywhere means FAIL overall. If a required field can't be determined from the resume, the result is UNSURE — those candidates are flagged for human review in Slack.</p>
+<p>A candidate gets <strong>PASS</strong> only if all required rules pass. One FAIL anywhere means FAIL overall. If a required field can't be determined from the resume, the result is UNSURE — those candidates are surfaced in the Unsure section of the evaluate-run Slack summary.</p>
 
 <p><strong>Auto-approve threshold:</strong> If a candidate gets PASS + score above 50, Chandler automatically sets humanDecision to "Approve" so an interview invite goes out on the next run without anyone needing to act.</p>
 

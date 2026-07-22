@@ -42,7 +42,9 @@ try {
   await slack.post(config.slack.recruiting_channel, formatCandidateSummary(result));
 } catch (err) {
   clearTimeout(timeout);
-  console.error('Fatal error:', err instanceof Error ? err.message : err);
+  const message = err instanceof Error ? err.message : String(err);
+  console.error('Fatal error:', message);
+  await slack.post(config.slack.recruiting_channel, `🚨 Evaluate run crashed: ${message}`).catch(() => {});
   throw err;
 } finally {
   await indeed.close();
